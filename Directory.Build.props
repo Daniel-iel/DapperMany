@@ -1,0 +1,33 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net7.0</TargetFramework>
+    <LangVersion>11</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+    <!-- NuGet Package Metadata -->
+    <Version>1.0.0</Version>
+    <Authors>Daniel Oliveira</Authors>
+    <Description>High-performance bulk operations framework extending Dapper with InsertMany, UpdateMany, DeleteMany</Description>
+    <PackageProjectUrl>https://github.com/DanielOliveira/DapperMany</PackageProjectUrl>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <RepositoryUrl>https://github.com/DanielOliveira/DapperMany</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageTags>dapper;bulk;orm;performance;sql-server;postgres;mysql</PackageTags>
+
+    <!-- Code Analysis -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- SourceLink for symbol publishing -->
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <DebugType>embedded</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="1.1.1" PrivateAssets="All" />
+  </ItemGroup>
+</Project>

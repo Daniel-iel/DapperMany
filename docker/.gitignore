@@ -1,0 +1,11 @@
+# Docker volumes (local data storage)
+sqlserver-data/
+postgres-data/
+mysql-data/
+
+# Docker Compose override file (for local configuration)
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>DapperMany.MySql</AssemblyName>
+    <RootNamespace>DapperMany.MySql</RootNamespace>
+    <PackageId>DapperMany.MySql</PackageId>
+    <Summary>MySQL provider for DapperMany</Summary>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DapperMany/DapperMany.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MySqlConnector" Version="2.2.0" />
+  </ItemGroup>
+
+</Project>

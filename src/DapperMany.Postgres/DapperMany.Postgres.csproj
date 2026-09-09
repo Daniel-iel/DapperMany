@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>DapperMany.Postgres</AssemblyName>
+    <RootNamespace>DapperMany.Postgres</RootNamespace>
+    <PackageId>DapperMany.Postgres</PackageId>
+    <Summary>PostgreSQL provider for DapperMany</Summary>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../DapperMany/DapperMany.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Npgsql" Version="7.*" />
+  </ItemGroup>
+
+</Project>

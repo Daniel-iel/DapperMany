@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>DapperMany.Postgres.IntegrationTests</AssemblyName>
+    <RootNamespace>DapperMany.Postgres.IntegrationTests</RootNamespace>
+    <IsTestProject>true</IsTestProject>
+    <NoWarn>1591;xUnit1031;xUnit2012</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DapperMany/DapperMany.csproj" />
+    <ProjectReference Include="../../src/DapperMany.Postgres/DapperMany.Postgres.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.7.0" />
+    <PackageReference Include="xunit" Version="2.6.0" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="coverlet.collector" Version="6.0.0">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Testcontainers" Version="3.6.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="3.6.0" />
+  </ItemGroup>
+
+</Project>
