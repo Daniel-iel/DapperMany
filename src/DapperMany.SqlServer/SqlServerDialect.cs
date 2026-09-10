@@ -6,7 +6,7 @@ namespace DapperMany.SqlServer;
 /// SQL Server-specific SQL dialect implementation.
 /// Handles SQL generation for SQL Server 2012+ databases.
 /// </summary>
-internal class SqlServerDialect : ISqlDialect
+internal sealed class SqlServerDialect : ISqlDialect
 {
     public string ProviderName => "SqlServer";
 

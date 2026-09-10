@@ -4,7 +4,7 @@ using System.Data;
 
 namespace DapperMany.MySql;
 
-internal class MySqlIdentityRetrievalStrategy : IIdentityRetrievalStrategy
+internal sealed class MySqlIdentityRetrievalStrategy : IIdentityRetrievalStrategy
 {
     public async Task<object?> GetLastIdentityAsync(IDbConnection connection, CancellationToken cancellationToken = default)
     {

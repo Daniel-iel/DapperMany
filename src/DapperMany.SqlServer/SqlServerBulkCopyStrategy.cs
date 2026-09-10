@@ -9,7 +9,7 @@ namespace DapperMany.SqlServer;
 /// SQL Server bulk copy strategy using optimized INSERT statements.
 /// Takes advantage of SQL Server's multi-row INSERT support and SCOPE_IDENTITY().
 /// </summary>
-internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
+internal sealed class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 {
     private const int MaxParametersPerBatch = 2100; // SQL Server parameter limit
     private const int RowsPerBatch = 50; // Conservative batch size for parameters
@@ -30,10 +30,9 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new SqlServerDialect();
         var totalInserted = 0;
 
-        // Process in batches to avoid exceeding parameter limits
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        // Process in batches to avoid exceeding parameter limits (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalInserted += inserted;
         }
@@ -57,10 +56,9 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new SqlServerDialect();
         var totalUpdated = 0;
 
-        // Process in batches
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        // Process in batches (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalUpdated += updated;
         }
@@ -84,10 +82,9 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new SqlServerDialect();
         var totalDeleted = 0;
 
-        // Process in batches
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        // Process in batches (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalDeleted += deleted;
         }
@@ -111,10 +108,9 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new SqlServerDialect();
         var totalDeleted = 0;
 
-        // Process in batches
-        for (int i = 0; i < keyList.Count; i += RowsPerBatch)
+        // Process in batches (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(keyList, RowsPerBatch))
         {
-            var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
             var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalDeleted += deleted;
         }

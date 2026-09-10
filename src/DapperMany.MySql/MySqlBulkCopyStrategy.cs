@@ -5,7 +5,7 @@ using System.Data;
 
 namespace DapperMany.MySql;
 
-internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
+internal sealed class MySqlBulkCopyStrategy : IBulkCopyStrategy
 {
     private const int MaxParametersPerBatch = 65535; // conservative
     private const int RowsPerBatch = 50;
@@ -21,9 +21,8 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new MySqlDialect();
         var totalInserted = 0;
 
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalInserted += inserted;
         }
@@ -42,9 +41,8 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new MySqlDialect();
         var totalUpdated = 0;
 
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalUpdated += updated;
         }
@@ -63,9 +61,8 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new MySqlDialect();
         var totalDeleted = 0;
 
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalDeleted += deleted;
         }
@@ -84,9 +81,8 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new MySqlDialect();
         var totalDeleted = 0;
 
-        for (int i = 0; i < keyList.Count; i += RowsPerBatch)
+        foreach (var batch in BatchHelper.Batch(keyList, RowsPerBatch))
         {
-            var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
             var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalDeleted += deleted;
         }

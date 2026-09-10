@@ -7,7 +7,7 @@ namespace DapperMany.SqlServer;
 /// <summary>
 /// SQL Server identity retrieval strategy using SCOPE_IDENTITY() and IDENT_CURRENT().
 /// </summary>
-internal class SqlServerIdentityRetrievalStrategy : IIdentityRetrievalStrategy
+internal sealed class SqlServerIdentityRetrievalStrategy : IIdentityRetrievalStrategy
 {
     public async Task<object?> GetLastIdentityAsync(IDbConnection connection, CancellationToken cancellationToken = default)
     {

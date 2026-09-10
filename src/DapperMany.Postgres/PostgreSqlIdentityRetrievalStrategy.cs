@@ -4,7 +4,7 @@ using System.Data;
 
 namespace DapperMany.Postgres;
 
-internal class PostgreSqlIdentityRetrievalStrategy : IIdentityRetrievalStrategy
+internal sealed class PostgreSqlIdentityRetrievalStrategy : IIdentityRetrievalStrategy
 {
     public async Task<object?> GetLastIdentityAsync(IDbConnection connection, CancellationToken cancellationToken = default)
     {

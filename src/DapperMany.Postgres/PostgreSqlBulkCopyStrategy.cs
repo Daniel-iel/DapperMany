@@ -9,7 +9,7 @@ namespace DapperMany.Postgres;
 /// PostgreSQL bulk copy strategy using optimized INSERT statements.
 /// Takes advantage of PostgreSQL's multi-row INSERT support and RETURNING clause.
 /// </summary>
-internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
+internal sealed class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
 {
     private const int MaxParametersPerBatch = 32767; // PostgreSQL parameter limit (theoretical)
     private const int RowsPerBatch = 50; // Conservative batch size
@@ -30,10 +30,9 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new PostgreSqlDialect();
         var totalInserted = 0;
 
-        // Process in batches to avoid extremely large statements
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        // Process in batches to avoid extremely large statements (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalInserted += inserted;
         }
@@ -57,10 +56,9 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new PostgreSqlDialect();
         var totalUpdated = 0;
 
-        // Process in batches
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        // Process in batches (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalUpdated += updated;
         }
@@ -84,10 +82,9 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new PostgreSqlDialect();
         var totalDeleted = 0;
 
-        // Process in batches
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        // Process in batches (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(entityList, RowsPerBatch))
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
             var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalDeleted += deleted;
         }
@@ -111,10 +108,9 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         var dialect = new PostgreSqlDialect();
         var totalDeleted = 0;
 
-        // Process in batches
-        for (int i = 0; i < keyList.Count; i += RowsPerBatch)
+        // Process in batches (using GetRange for efficiency)
+        foreach (var batch in BatchHelper.Batch(keyList, RowsPerBatch))
         {
-            var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
             var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, cancellationToken);
             totalDeleted += deleted;
         }

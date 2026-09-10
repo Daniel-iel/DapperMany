@@ -2,7 +2,7 @@ using DapperMany.Internal.Abstractions;
 
 namespace DapperMany.MySql;
 
-internal class MySqlDialect : ISqlDialect
+internal sealed class MySqlDialect : ISqlDialect
 {
     public string ProviderName => "MySQL";
 

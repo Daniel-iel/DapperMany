@@ -6,7 +6,7 @@ namespace DapperMany.Postgres;
 /// PostgreSQL-specific SQL dialect implementation.
 /// Handles SQL generation for PostgreSQL 10+ databases.
 /// </summary>
-internal class PostgreSqlDialect : ISqlDialect
+internal sealed class PostgreSqlDialect : ISqlDialect
 {
     public string ProviderName => "PostgreSQL";
 

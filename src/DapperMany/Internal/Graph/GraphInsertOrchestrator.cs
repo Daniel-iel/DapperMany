@@ -1,5 +1,6 @@
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
+using System.Collections.Concurrent;
 using System.Data;
 using System.Reflection;
 
@@ -9,8 +10,14 @@ namespace DapperMany.Internal.Graph;
 /// Orchestrates bulk insert operations for entity graphs (parent + children relationships).
 /// Handles automatic FK population and ordering of parent/child inserts.
 /// </summary>
-internal class GraphInsertOrchestrator
+internal sealed class GraphInsertOrchestrator
 {
+    // Cache for GetMetadata<T>() delegates to avoid reflection on each relationship insert
+    private static readonly ConcurrentDictionary<Type, Func<EntityMetadata>> _metadataGetterCache = new();
+
+    // Cache for BulkInsertAsync<T>() delegates to avoid reflection on each relationship insert
+    private static readonly ConcurrentDictionary<Type, Func<IBulkCopyStrategy, IDbConnection, IEnumerable<object>, EntityMetadata, CancellationToken, Task<int>>> _bulkInsertCache = new();
+
     /// <summary>
     /// Inserts a collection of parent entities and their related children in the correct order.
     /// Automatically populates foreign key values in children after parents are inserted.
@@ -105,24 +112,45 @@ internal class GraphInsertOrchestrator
         if (allChildren.Count == 0)
             return 0;
 
-        // Get metadata for child entity type
+        // Get metadata for child entity type using cached delegate
+        var metadataGetter = _metadataGetterCache.GetOrAdd(
+            childEntityType,
+            t => CompileMetadataGetter(t));
+        var childMetadata = metadataGetter();
+
+        // Get BulkInsertAsync delegate for child type using cached delegate
+        var bulkInsertDelegate = _bulkInsertCache.GetOrAdd(
+            childEntityType,
+            t => CompileBulkInsertDelegate(t));
+
+        // Call BulkInsertAsync with the cached delegate (no reflection per insert)
+        return await bulkInsertDelegate(bulkCopyStrategy, connection, allChildren, childMetadata, cancellationToken);
+    }
+
+    /// <summary>
+    /// Compiles a delegate for EntityMapper.GetMetadata{T}() to avoid reflection on each call.
+    /// </summary>
+    private static Func<EntityMetadata> CompileMetadataGetter(Type childEntityType)
+    {
         var getMetadataMethod = typeof(EntityMapper)
-            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+            .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .First(m => m.Name == "GetMetadata" && m.GetGenericArguments().Length == 0)
             .MakeGenericMethod(childEntityType);
 
-        var childMetadata = (EntityMetadata)getMetadataMethod.Invoke(null, new[] { childEntityType })!;
+        return () => (EntityMetadata)getMetadataMethod.Invoke(null, new[] { childEntityType })!;
+    }
 
-        // Insert all children using reflection to call BulkInsertAsync with correct type
-        var insertMethod = bulkCopyStrategy.GetType()
+    /// <summary>
+    /// Compiles a delegate for IBulkCopyStrategy.BulkInsertAsync{T}() to avoid reflection on each call.
+    /// </summary>
+    private static Func<IBulkCopyStrategy, IDbConnection, IEnumerable<object>, EntityMetadata, CancellationToken, Task<int>> CompileBulkInsertDelegate(Type childEntityType)
+    {
+        var bulkInsertMethod = typeof(IBulkCopyStrategy)
             .GetMethods()
             .First(m => m.Name == "BulkInsertAsync" && m.IsGenericMethod)
             .MakeGenericMethod(childEntityType);
 
-        var task = (Task<int>)insertMethod.Invoke(
-            bulkCopyStrategy,
-            new object[] { connection, allChildren, childMetadata, cancellationToken })!;
-
-        return await task;
+        return (strategy, connection, entities, metadata, token) =>
+            (Task<int>)bulkInsertMethod.Invoke(strategy, new object[] { connection, entities, metadata, token })!;
     }
 }
