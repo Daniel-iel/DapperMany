@@ -2,6 +2,7 @@ using Dapper;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
+using System.Diagnostics;
 
 namespace DapperMany.SqlServer;
 
@@ -20,8 +21,10 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         EntityMetadata metadata,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
-        if (metadata == null) throw new ArgumentNullException(nameof(metadata));
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+        if (metadata == null)
+            throw new ArgumentNullException(nameof(metadata));
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
@@ -47,8 +50,10 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         EntityMetadata metadata,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
-        if (metadata == null) throw new ArgumentNullException(nameof(metadata));
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+        if (metadata == null)
+            throw new ArgumentNullException(nameof(metadata));
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
@@ -74,8 +79,10 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         EntityMetadata metadata,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
-        if (metadata == null) throw new ArgumentNullException(nameof(metadata));
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+        if (metadata == null)
+            throw new ArgumentNullException(nameof(metadata));
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
@@ -101,8 +108,10 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         EntityMetadata metadata,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (keys == null) throw new ArgumentNullException(nameof(keys));
-        if (metadata == null) throw new ArgumentNullException(nameof(metadata));
+        if (keys == null)
+            throw new ArgumentNullException(nameof(keys));
+        if (metadata == null)
+            throw new ArgumentNullException(nameof(metadata));
 
         var keyList = keys.ToList();
         if (keyList.Count == 0)
@@ -133,6 +142,8 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             .Where(p => !metadata.IdentityProperties.Contains(p))
             .Select(p => p.Name)
             .ToList();
+
+        var sw = Stopwatch.StartNew();
 
         // Build INSERT SQL with OUTPUT clause to retrieve inserted identities when key is identity
         var quotedTable = dialect.QuoteIdentifier(metadata.TableName);
@@ -210,11 +221,16 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
                 }
             }
 
+            sw.Stop();
+            Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (SqlServer): affected={insertedIds.Count}, elapsed={sw.ElapsedMilliseconds}ms");
             return insertedIds.Count;
         }
 
         var result = await connection.ExecuteAsync(
             new CommandDefinition(sqlNoOutput, parameters, cancellationToken: cancellationToken));
+
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (SqlServer): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }
@@ -227,6 +243,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         CancellationToken cancellationToken) where T : class
     {
         var totalUpdated = 0;
+        var sw = Stopwatch.StartNew();
 
         // Update each entity individually to handle partial objects correctly
         foreach (var entity in batch)
@@ -239,7 +256,8 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
                 {
                     var getter = AccessorFactory.CreateGetter(p);
                     var value = getter(entity);
-                    if (value == null) return false;
+                    if (value == null)
+                        return false;
                     if (p.PropertyType.IsValueType)
                     {
                         var defaultValue = Activator.CreateInstance(p.PropertyType);
@@ -282,6 +300,8 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             totalUpdated += updated;
         }
 
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkUpdate {typeof(T).Name} (SqlServer): affected={totalUpdated}, elapsed={sw.ElapsedMilliseconds}ms");
         return totalUpdated;
     }
 
@@ -307,8 +327,11 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             parameters.Add($"@key{i}", keyValues[i]);
         }
 
+        var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
             new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkDelete {typeof(T).Name} (SqlServer): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }
@@ -331,8 +354,11 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             parameters.Add($"@key{i}", keys[i]);
         }
 
+        var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
             new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkDeleteByKeys (SqlServer): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }

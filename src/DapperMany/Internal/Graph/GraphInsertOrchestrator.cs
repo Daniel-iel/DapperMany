@@ -2,6 +2,7 @@ using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
 using System.Reflection;
+using System.Diagnostics;
 
 namespace DapperMany.Internal.Graph;
 
@@ -36,9 +37,16 @@ internal class GraphInsertOrchestrator
         var bulkCopyStrategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
         var identityStrategy = ProviderRegistry.Instance.GetIdentityRetrievalStrategy(providerName);
 
+        // Overall timer for the graph insert
+        var overallSw = Stopwatch.StartNew();
+
         // Step 1: Insert all parent entities
+        var swParent = Stopwatch.StartNew();
         var parentsInserted = await bulkCopyStrategy.BulkInsertAsync(
             connection, parentList, parentMetadata, cancellationToken);
+        swParent.Stop();
+
+        Debug.WriteLine($"[DAPPERMANY] GraphInsert {typeof(TParent).Name} (Parents - {providerName}): affected={parentsInserted}, elapsed={swParent.ElapsedMilliseconds}ms");
 
         // Step 2: Retrieve generated identity values for parents
         var parentKeyGetter = AccessorFactory.CreateGetter(parentMetadata.KeyProperty!);
@@ -49,16 +57,22 @@ internal class GraphInsertOrchestrator
         // In a real scenario with SqlServer, use OUTPUT clause to capture IDs
 
         // Step 3: Process each relationship (insert children, but do not include them in the return value)
+        var totalChildrenInserted = 0;
         foreach (var relationship in parentMetadata.Relationships.Values)
         {
-            await InsertChildrenForRelationship(
+            var childrenInserted = await InsertChildrenForRelationship(
                 connection,
                 parentList,
                 parentMetadata,
                 relationship,
                 bulkCopyStrategy,
                 cancellationToken);
+
+            totalChildrenInserted += childrenInserted;
         }
+
+        overallSw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] GraphInsert {typeof(TParent).Name} (Total - {providerName}): parents={parentsInserted}, children={totalChildrenInserted}, elapsed={overallSw.ElapsedMilliseconds}ms");
 
         return parentsInserted;
     }
@@ -147,10 +161,15 @@ internal class GraphInsertOrchestrator
             typedList.Add(c);
         }
 
+        var sw = Stopwatch.StartNew();
         var task = (Task<int>)insertMethod.Invoke(
             bulkCopyStrategy,
             new object[] { connection, typedList, childMetadata, cancellationToken })!;
 
-        return await task;
+        var insertedChildren = await task;
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] GraphInsert Children {childEntityType.Name} (Relationship {relationship.NavigationProperty?.Name ?? relationship.ForeignKeyPropertyName} - {bulkCopyStrategy.GetType().Name}): affected={insertedChildren}, elapsed={sw.ElapsedMilliseconds}ms");
+
+        return insertedChildren;
     }
 }

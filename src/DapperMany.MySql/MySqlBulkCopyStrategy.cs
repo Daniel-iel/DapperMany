@@ -2,6 +2,7 @@ using Dapper;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
+using System.Diagnostics;
 
 namespace DapperMany.MySql;
 
@@ -101,6 +102,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             .Select(p => p.Name)
             .ToList();
 
+        var sw = Stopwatch.StartNew();
         var sql = dialect.GetInsertSql(metadata.TableName, columnNames, batch.Count);
         var parameters = BuildInsertParameters(batch, metadata, columnNames);
 
@@ -141,16 +143,22 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
                 }
             }
 
+            sw.Stop();
+            Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (MySql): affected={affected}, elapsed={sw.ElapsedMilliseconds}ms");
             return affected;
         }
 
         var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (MySql): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
+
         return result;
     }
 
     private async Task<int> UpdateBatchAsync<T>(IDbConnection connection, List<T> batch, EntityMetadata metadata, MySqlDialect dialect, CancellationToken cancellationToken) where T : class
     {
         var totalUpdated = 0;
+        var sw = Stopwatch.StartNew();
         foreach (var entity in batch)
         {
             var columnProps = metadata.MappedProperties
@@ -195,6 +203,8 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             totalUpdated += updated;
         }
 
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkUpdate {typeof(T).Name} (MySql): affected={totalUpdated}, elapsed={sw.ElapsedMilliseconds}ms");
         return totalUpdated;
     }
 
@@ -208,7 +218,10 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var parameters = new DynamicParameters();
         for (int i = 0; i < keyValues.Count; i++) parameters.Add($"@key{i}", keyValues[i]);
 
+        var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkDelete {typeof(T).Name} (MySql): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
         return result;
     }
 
@@ -221,7 +234,10 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var parameters = new DynamicParameters();
         for (int i = 0; i < keys.Count; i++) parameters.Add($"@key{i}", keys[i]);
 
+        var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkDeleteByKeys (MySql): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
         return result;
     }
 

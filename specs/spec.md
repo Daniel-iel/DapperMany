@@ -151,6 +151,22 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
 - Aceita lista de entidades completas ou lista de chaves (`IEnumerable<object> keys`).
 - Fora de escopo na v1: cascade automático via `[HasMany]` — cada nível deve ser deletado explicitamente respeitando FKs.
 
+### 4.4 Logging de Operações e Duração (Debug only)
+
+Em builds de `Debug`, todas as operações bulk relevantes (`InsertMany`, `InsertManyGraph`, `UpdateMany`, `DeleteMany`) devem emitir informações de diagnóstico via `System.Diagnostics.Debug.WriteLine()` usando um `Stopwatch` para medir a duração da operação.
+
+Regras e formato:
+- Mensagens somente em `#if DEBUG` (não devem aparecer em builds Release).
+- Formato padrão: `[DAPPERMANY] <Op> <Entity> (<Provider>): affected=<N>, elapsed=<Tms>ms`
+    - Exemplo: `[DAPPERMANY] BulkInsert Pedido (SqlServer): affected=10, elapsed=45ms`
+- Adicionar logs nas implementações provider-específicas (`IBulkCopyStrategy`) e no orquestrador de grafos (`GraphInsertOrchestrator`) — não instrumentar nas camadas de extensão pública.
+- Para inserções de grafo, registrar tanto a fase de pais quanto a fase de filhos, e um log agregado total ao final da operação.
+- Usar `typeof(T).Name` para o nome da entidade e identificar o provider pelo nome do provider (`SqlServer`, `Postgres`, `MySql`).
+
+Propósito:
+- Fornecer sinais rápidos de troubleshooting local: quantas linhas foram afetadas por batch/operação e quanto tempo levou.
+- Não substitui integrações de observability (OpenTelemetry) — que podem ser adicionadas futuramente.
+
 ---
 
 ## 5. Estrutura de solution (multi-DLL)

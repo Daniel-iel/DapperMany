@@ -2,6 +2,7 @@ using Dapper;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
+using System.Diagnostics;
 
 namespace DapperMany.Postgres;
 
@@ -135,6 +136,7 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             .ToList();
 
         // Build quoted names
+        var sw = Stopwatch.StartNew();
         var quotedTable = dialect.QuoteIdentifier(metadata.TableName);
         var quotedColumns = columnNames.Select(c => dialect.QuoteIdentifier(c)).ToList();
         var columnList = string.Join(", ", quotedColumns);
@@ -204,10 +206,14 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
                 }
             }
 
+            sw.Stop();
+            Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (Postgres): affected={insertedIds.Count}, elapsed={sw.ElapsedMilliseconds}ms");
             return insertedIds.Count;
         }
 
         var result = await connection.ExecuteAsync(new CommandDefinition($"INSERT INTO {quotedTable} ({columnList}) VALUES {string.Join(", ", valuesList)};", parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (Postgres): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }
@@ -220,6 +226,7 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         CancellationToken cancellationToken) where T : class
     {
         var totalUpdated = 0;
+        var sw = Stopwatch.StartNew();
 
         // Update each entity individually to handle partial objects correctly
         foreach (var entity in batch)
@@ -273,6 +280,8 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             totalUpdated += updated;
         }
 
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkUpdate {typeof(T).Name} (Postgres): affected={totalUpdated}, elapsed={sw.ElapsedMilliseconds}ms");
         return totalUpdated;
     }
 
@@ -298,8 +307,11 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             parameters.Add($"@param{i + 1}", keyValues[i]);
         }
 
+        var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
             new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkDelete {typeof(T).Name} (Postgres): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }
@@ -322,8 +334,11 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             parameters.Add($"@param{i + 1}", keys[i]);
         }
 
+        var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
             new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        sw.Stop();
+        Debug.WriteLine($"[DAPPERMANY] BulkDeleteByKeys (Postgres): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }

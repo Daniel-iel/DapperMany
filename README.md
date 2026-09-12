@@ -169,6 +169,14 @@ Provider-specific optimizations are implemented under `src/`:
 
 Provider notes and design decisions are recorded in [specs/spec.md](specs/spec.md)
 
+## Diagnostics
+
+In Debug builds the library emits lightweight diagnostics for bulk operations to the debug output using `System.Diagnostics.Debug.WriteLine()` along with a `Stopwatch` measurement. Messages follow the format:
+
+`[DAPPERMANY] <Op> <Entity> (<Provider>): affected=<N>, elapsed=<Tms>ms`
+
+These logs are produced only in `#if DEBUG` builds and are intended for local troubleshooting. They are emitted by provider implementations and the graph orchestrator (not by public extension methods).
+
 ## Running the samples and tests
 Make sure Docker is running the local DBs before executing integration tests or the sample project.
 
