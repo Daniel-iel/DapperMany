@@ -3,7 +3,6 @@ using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
 using System.Diagnostics;
-using System.Threading;
 
 namespace DapperMany.MySql;
 

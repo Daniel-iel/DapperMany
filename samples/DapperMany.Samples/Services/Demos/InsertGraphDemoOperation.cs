@@ -1,10 +1,11 @@
+using System;
+using System.Diagnostics;
+using System.Linq;
+using System.Collections.Generic;
 using DapperMany.Samples.Data;
 using DapperMany.Samples.Infrastructure.Error;
 using DapperMany.Samples.Infrastructure.Output;
 using DapperMany.Samples.Models;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace DapperMany.Samples.Services.Demos
 {
@@ -12,62 +13,50 @@ namespace DapperMany.Samples.Services.Demos
     {
         public string Name => "InsertManyGraph";
 
+        private readonly int _count;
+
+        public InsertGraphDemoOperation(int count = 3)
+        {
+            _count = Math.Max(1, count);
+        }
+
         public async Task ExecuteAsync(System.Data.IDbConnection connection, IOutputFormatter output, IErrorHandler errorHandler, IPedidoGenerator generator)
         {
-            output.WriteInfo("\n    ⏳ Inserting orders WITH items (graph insert)...\n");
+            output.WriteInfo($"Inserting {_count} orders WITH items (graph insert)...");
 
             try
             {
-                var orders = new List<Pedido>
-                {
-                    new Pedido
-                    {
-                        NumeroDocumento = $"PED-GRAPH-{Guid.NewGuid().ToString()[..8].ToUpper()}",
-                        DataPedido = DateTime.UtcNow,
-                        ValorTotal = 1200.00m,
-                        Status = "Pendente",
-                        Itens = new()
-                        {
-                            new ItemPedido { Descricao = "Laptop 15\"", Quantidade = 1, ValorUnitario = 800.00m },
-                            new ItemPedido { Descricao = "Mouse Wireless", Quantidade = 2, ValorUnitario = 50.00m },
-                            new ItemPedido { Descricao = "USB-C Cable", Quantidade = 3, ValorUnitario = 15.00m }
-                        }
-                    },
-                    new Pedido
-                    {
-                        NumeroDocumento = $"PED-GRAPH-{Guid.NewGuid().ToString()[..8].ToUpper()}",
-                        DataPedido = DateTime.UtcNow,
-                        ValorTotal = 500.00m,
-                        Status = "Processado",
-                        Itens = new()
-                        {
-                            new ItemPedido { Descricao = "Mechanical Keyboard", Quantidade = 1, ValorUnitario = 500.00m }
-                        }
-                    },
-                    new Pedido
-                    {
-                        NumeroDocumento = $"PED-GRAPH-{Guid.NewGuid().ToString()[..8].ToUpper()}",
-                        DataPedido = DateTime.UtcNow,
-                        ValorTotal = 0.00m,
-                        Status = "Cancelado",
-                        Itens = new() // Empty - no items
-                    }
-                };
+                var orders = new List<Pedido>(_count);
+                var rnd = new Random();
 
-                int insertedCount = await connection.InsertManyGraphAsync(orders);
-
-                output.WriteSuccess($"    ✓ Successfully inserted {insertedCount} order(s) with items\n");
-                output.WriteLine("    Details:");
-                foreach (var order in orders)
+                for (int i = 0; i < _count; i++)
                 {
-                    output.WriteLine($"    - Order: {order.NumeroDocumento}");
-                    output.WriteLine($"      Items: {order.Itens.Count}");
-                    foreach (var item in order.Itens)
+                    var order = generator.Generate();
+                    order.NumeroDocumento = $"PED-GRAPH-{Guid.NewGuid().ToString()[..8].ToUpper()}";
+                    order.DataPedido = DateTime.UtcNow;
+
+                    int itemsCount = rnd.Next(1, 4); // 1..3 items
+                    for (int j = 0; j < itemsCount; j++)
                     {
-                        output.WriteLine($"        • {item.Descricao} (qty: {item.Quantidade}, unit price: ${item.ValorUnitario})");
+                        var item = new ItemPedido
+                        {
+                            Descricao = $"Item-{j + 1}",
+                            Quantidade = rnd.Next(1, 5),
+                            ValorUnitario = decimal.Round((decimal)(rnd.NextDouble() * 500), 2)
+                        };
+                        item.ValorTotal = item.Quantidade * item.ValorUnitario;
+                        order.Itens.Add(item);
                     }
+
+                    order.ValorTotal = order.Itens.Sum(x => x.ValorTotal);
+                    orders.Add(order);
                 }
-                output.WriteLine(string.Empty);
+
+                var sw = Stopwatch.StartNew();
+                int insertedCount = await connection.InsertManyGraphAsync(orders);
+                sw.Stop();
+
+                output.WriteSuccess($"Successfully inserted {insertedCount} order(s) with items in {sw.Elapsed.TotalMilliseconds:N0} ms");
             }
             catch (Exception ex)
             {

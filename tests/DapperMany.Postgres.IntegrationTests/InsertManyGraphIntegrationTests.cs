@@ -1,10 +1,7 @@
-using System;
 using System.Diagnostics;
-using Dapper;
 using DapperMany.Samples.Models;
 using Npgsql;
 using Testcontainers.PostgreSql;
-using Xunit;
 
 namespace DapperMany.Postgres.IntegrationTests;
 

@@ -1,5 +1,3 @@
-using System.Data;
-
 namespace DapperMany.Internal.Abstractions;
 
 /// <summary>

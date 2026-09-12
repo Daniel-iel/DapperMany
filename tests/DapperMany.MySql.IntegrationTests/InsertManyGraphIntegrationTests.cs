@@ -1,10 +1,8 @@
-using System;
 using System.Diagnostics;
 using Dapper;
 using DapperMany.Samples.Models;
 using MySqlConnector;
 using Testcontainers.MySql;
-using Xunit;
 
 namespace DapperMany.MySql.IntegrationTests;
 

@@ -1,5 +1,4 @@
 using DapperMany.Samples.Models;
-using System.Collections.Generic;
 
 namespace DapperMany.Samples.Data
 {

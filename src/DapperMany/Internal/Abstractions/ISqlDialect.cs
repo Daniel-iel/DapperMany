@@ -1,6 +1,3 @@
-using DapperMany.Internal.Mapping;
-using System.Data;
-
 namespace DapperMany.Internal.Abstractions;
 
 /// <summary>

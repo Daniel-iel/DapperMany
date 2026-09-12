@@ -1,4 +1,3 @@
-using System;
 using DapperMany.Samples.Infrastructure.Output;
 
 namespace DapperMany.Samples.Infrastructure.Error

@@ -1,10 +1,7 @@
-using System;
-using System.Data;
 using System.Diagnostics;
 using DapperMany.Samples.Models;
 using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
-using Xunit;
 
 namespace DapperMany.SqlServer.IntegrationTests;
 

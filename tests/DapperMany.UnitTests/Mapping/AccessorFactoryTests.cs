@@ -1,4 +1,3 @@
-using System.Reflection;
 using DapperMany.Internal.Mapping;
 using Xunit;
 

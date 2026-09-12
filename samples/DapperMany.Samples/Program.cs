@@ -1,17 +1,12 @@
-using Dapper;
 using DapperMany.MySql;
 using DapperMany.Postgres;
-using DapperMany.Samples.Models;
-using DapperMany.SqlServer;
-using Microsoft.Data.SqlClient;
-using Microsoft.Extensions.Configuration;
-using MySqlConnector;
-using Npgsql;
-using DapperMany.Samples.Infrastructure.Output;
-using DapperMany.Samples.Infrastructure.Error;
 using DapperMany.Samples.Data;
-using DapperMany.Samples.Services.Demos;
 using DapperMany.Samples.Infrastructure.Connections;
+using DapperMany.Samples.Infrastructure.Error;
+using DapperMany.Samples.Infrastructure.Logging;
+using DapperMany.Samples.Services.Demos;
+using DapperMany.SqlServer;
+using Microsoft.Extensions.Configuration;
 
 namespace DapperMany.Samples;
 
@@ -19,9 +14,13 @@ class Program
 {
     static async Task Main(string[] args)
     {
-        Console.WriteLine("╔════════════════════════════════════════════════╗");
-        Console.WriteLine("║         DapperMany - Bulk Operations Demo      ║");
-        Console.WriteLine("╚════════════════════════════════════════════════╝\n");
+        var logger = new SampleLogger();
+
+        logger.Header(@"
+╔════════════════════════════════════════════════╗
+║         DapperMany - Bulk Operations Demo      ║
+╚════════════════════════════════════════════════╝
+");
 
         // Load configuration
         var config = new ConfigurationBuilder()
@@ -41,45 +40,61 @@ class Program
         var showMenu = true;
         while (showMenu)
         {
-            Console.WriteLine("\n Select a database provider:\n");
-            Console.WriteLine("  1. SQL Server");
-            Console.WriteLine("  2. PostgreSQL");
-            Console.WriteLine("  3. MySQL");
-            Console.WriteLine("  0. Exit\n");
-            Console.Write("  Choice: ");
+            logger.Info(@"
+Select a database provider:
+   1. SQL Server
+   2. PostgreSQL
+   3. MySQL
+   0. Exit");
+            var input = logger.PromptInline("Choice: ");
 
-            if (int.TryParse(Console.ReadLine(), out var choice))
+            if (int.TryParse(input, out var choice))
             {
                 switch (choice)
                 {
                     case 1:
-                        await RunSqlServerDemo(config);
-                        break;
+                        {
+                            var batchInput = logger.PromptInline("Bulk batch size (default 1500): ");
+                            if (!int.TryParse(batchInput, out var batchSize) || batchSize <= 0)
+                                batchSize = 1500;
+                            await RunSqlServerDemo(config, logger, batchSize);
+                            break;
+                        }
                     case 2:
-                        await RunPostgresDemo(config);
-                        break;
+                        {
+                            var batchInput = logger.PromptInline("Bulk batch size (default 1500): ");
+                            if (!int.TryParse(batchInput, out var batchSize) || batchSize <= 0)
+                                batchSize = 1500;
+                            await RunPostgresDemo(config, logger, batchSize);
+                            break;
+                        }
                     case 3:
-                        await RunMySqlDemo(config);
-                        break;
+                        {
+                            var batchInput = logger.PromptInline("Bulk batch size (default 1500): ");
+                            if (!int.TryParse(batchInput, out var batchSize) || batchSize <= 0)
+                                batchSize = 1500;
+                            await RunMySqlDemo(config, logger, batchSize);
+                            break;
+                        }
                     case 0:
                         showMenu = false;
-                        Console.WriteLine("\n  Goodbye!");
+                        logger.Info("Goodbye!");
                         break;
                     default:
-                        Console.WriteLine("\n  Invalid choice. Try again.");
+                        logger.Info(@"Invalid choice. Try again.");
                         break;
                 }
             }
             else
             {
-                Console.WriteLine("\n  Invalid input. Try again.");
+                logger.Info(@"Invalid input. Try again.");
             }
         }
     }
 
-    static async Task RunSqlServerDemo(IConfiguration config)
+    static async Task RunSqlServerDemo(IConfiguration config, SampleLogger logger, int batchSize)
     {
-        Console.WriteLine("\n▶ SQL Server Demo\n");
+        logger.Header(@"###### SQL Server Demo ######");
 
         var connectionString = config.GetConnectionString("SqlServer")
             ?? throw new InvalidOperationException("SQL Server connection string not found");
@@ -90,21 +105,22 @@ class Program
         {
             using var connection = factory.Create(connectionString);
             await ((System.Data.Common.DbConnection)connection).OpenAsync();
-            Console.WriteLine("  ✓ Connected to SQL Server");
 
-            await ShowProviderDemo(connection);
+            logger.Success("Connected to SQL Server");
+
+            await ShowProviderDemo(connection, logger, batchSize);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ✗ Error: {ex.Message}");
-            Console.WriteLine($"     Make sure SQL Server is running and accessible");
-            Console.WriteLine($"     Connection: {connectionString}");
+            logger.Error($"Error: {ex.Message}");
+            logger.Info($"Make sure SQL Server is running and accessible");
+            logger.Info($"Connection: {connectionString}");
         }
     }
 
-    static async Task RunPostgresDemo(IConfiguration config)
+    static async Task RunPostgresDemo(IConfiguration config, SampleLogger logger, int batchSize)
     {
-        Console.WriteLine("\n▶ PostgreSQL Demo\n");
+        logger.Header(@"###### PostgreSQL Demo ######");
 
         var connectionString = config.GetConnectionString("PostgreSQL")
             ?? throw new InvalidOperationException("PostgreSQL connection string not found");
@@ -115,21 +131,21 @@ class Program
         {
             using var connection = factory.Create(connectionString);
             await ((System.Data.Common.DbConnection)connection).OpenAsync();
-            Console.WriteLine("  ✓ Connected to PostgreSQL");
+            logger.Success("Connected to PostgreSQL");
 
-            await ShowProviderDemo(connection);
+            await ShowProviderDemo(connection, logger, batchSize);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ✗ Error: {ex.Message}");
-            Console.WriteLine($"     Make sure PostgreSQL is running and accessible");
-            Console.WriteLine($"     Connection: {connectionString}");
+            logger.Error($"Error: {ex.Message}");
+            logger.Info($"Make sure PostgreSQL is running and accessible");
+            logger.Info($"Connection: {connectionString}");
         }
     }
 
-    static async Task RunMySqlDemo(IConfiguration config)
+    static async Task RunMySqlDemo(IConfiguration config, SampleLogger logger, int batchSize)
     {
-        Console.WriteLine("\n▶ MySQL Demo\n");
+        logger.Header(@"###### MySQL Demo ######");
 
         var connectionString = config.GetConnectionString("MySQL")
             ?? throw new InvalidOperationException("MySQL connection string not found");
@@ -140,41 +156,40 @@ class Program
         {
             using var connection = factory.Create(connectionString);
             await ((System.Data.Common.DbConnection)connection).OpenAsync();
-            Console.WriteLine("  ✓ Connected to MySQL");
+            logger.Success("Connected to MySQL");
 
-            await ShowProviderDemo(connection);
+            await ShowProviderDemo(connection, logger, batchSize);
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"  ✗ Error: {ex.Message}");
-            Console.WriteLine($"     Make sure MySQL is running and accessible");
-            Console.WriteLine($"     Connection: {connectionString}");
+            logger.Error($"Error: {ex.Message}");
+            logger.Info($"Make sure MySQL is running and accessible");
+            logger.Info($"Connection: {connectionString}");
         }
     }
 
-    static async Task ShowProviderDemo(System.Data.IDbConnection connection)
+    static async Task ShowProviderDemo(System.Data.IDbConnection connection, SampleLogger logger, int batchSize)
     {
         // Create local infrastructure components (no DI in samples by design)
-        var output = new ConsoleOutputFormatter();
+        var output = logger.Formatter;
         var errorHandler = new ConsoleErrorHandler(output);
         var generator = new RandomPedidoGenerator();
 
         // Use the new operation for InsertMany (refactored)
-        var insertOp = new InsertManyDemoOperation();
+        var insertOp = new InsertManyDemoOperation(batchSize);
         await insertOp.ExecuteAsync(connection, output, errorHandler, generator);
 
         // Execute other demos via refactored operations
-        var graphOp = new InsertGraphDemoOperation();
+        var graphOp = new InsertGraphDemoOperation(batchSize);
         await graphOp.ExecuteAsync(connection, output, errorHandler, generator);
 
         var queryOp = new QueryDemoOperation();
         await queryOp.ExecuteAsync(connection, output, errorHandler, generator);
 
-        var updateOp = new UpdateManyDemoOperation();
+        var updateOp = new UpdateManyDemoOperation(batchSize);
         await updateOp.ExecuteAsync(connection, output, errorHandler, generator);
 
-        var deleteOp = new DeleteManyDemoOperation();
+        var deleteOp = new DeleteManyDemoOperation(batchSize);
         await deleteOp.ExecuteAsync(connection, output, errorHandler, generator);
     }
-    // Unused legacy demo methods removed; implementations live in Services/Demos
 }

@@ -1,5 +1,3 @@
-using System;
-
 namespace DapperMany.Samples.Infrastructure.Error
 {
     public interface IErrorHandler

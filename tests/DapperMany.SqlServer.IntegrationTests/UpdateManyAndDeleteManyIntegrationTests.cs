@@ -4,7 +4,6 @@ using Dapper;
 using DapperMany.Samples.Models;
 using Microsoft.Data.SqlClient;
 using Testcontainers.MsSql;
-using Xunit;
 
 namespace DapperMany.SqlServer.IntegrationTests;
 

@@ -1,11 +1,9 @@
 using Dapper;
+using System.Diagnostics;
 using DapperMany.Samples.Data;
 using DapperMany.Samples.Infrastructure.Error;
 using DapperMany.Samples.Infrastructure.Output;
 using DapperMany.Samples.Models;
-using System;
-using System.Linq;
-using System.Threading.Tasks;
 
 namespace DapperMany.Samples.Services.Demos
 {
@@ -13,18 +11,25 @@ namespace DapperMany.Samples.Services.Demos
     {
         public string Name => "UpdateMany";
 
+        private readonly int _count;
+
+        public UpdateManyDemoOperation(int count = 3)
+        {
+            _count = Math.Max(1, count);
+        }
+
         public async Task ExecuteAsync(System.Data.IDbConnection connection, IOutputFormatter output, IErrorHandler errorHandler, IPedidoGenerator generator)
         {
-            output.WriteInfo("\n    ⏳ Updating orders...\n");
+            output.WriteInfo("Updating orders...");
 
             try
             {
-                var existingOrders = connection.Query<Pedido>("SELECT TOP 3 * FROM Pedidos ORDER BY Id DESC");
+                var existingOrders = connection.Query<Pedido>("SELECT * FROM Pedidos ORDER BY Id DESC").ToList();
 
-                var ordersToUpdate = existingOrders.ToList();
+                var ordersToUpdate = existingOrders.Take(_count).ToList();
                 if (ordersToUpdate.Count == 0)
                 {
-                    output.WriteInfo("    ℹ  No orders found to update. Insert some orders first.\n");
+                    output.WriteInfo("No orders found to update. Insert some orders first.\n");
                     return;
                 }
 
@@ -40,15 +45,11 @@ namespace DapperMany.Samples.Services.Demos
                     order.Modified = DateTime.UtcNow;
                 }
 
+                var sw = Stopwatch.StartNew();
                 var updatedCount = await connection.UpdateManyAsync(ordersToUpdate);
+                sw.Stop();
 
-                output.WriteSuccess($"    ✓ Updated {updatedCount} orders successfully");
-                output.WriteLine("\n    Updated orders:");
-                foreach (var order in ordersToUpdate)
-                {
-                    output.WriteLine($"      • Order {order.NumeroDocumento}: {order.Status}");
-                }
-                output.WriteLine(string.Empty);
+                output.WriteSuccess($"Updated {updatedCount} orders successfully in {sw.Elapsed.TotalMilliseconds:N0} ms");
             }
             catch (Exception ex)
             {

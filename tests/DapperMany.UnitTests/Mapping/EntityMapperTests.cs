@@ -1,6 +1,3 @@
-using System.ComponentModel.DataAnnotations;
-using System.ComponentModel.DataAnnotations.Schema;
-using System.Reflection;
 using DapperMany.Attributes;
 using DapperMany.Internal.Mapping;
 using Xunit;

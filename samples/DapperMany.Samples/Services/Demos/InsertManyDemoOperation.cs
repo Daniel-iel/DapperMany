@@ -1,10 +1,8 @@
+using System.Diagnostics;
 using DapperMany.Samples.Data;
 using DapperMany.Samples.Infrastructure.Error;
 using DapperMany.Samples.Infrastructure.Output;
 using DapperMany.Samples.Models;
-using System;
-using System.Collections.Generic;
-using System.Threading.Tasks;
 
 namespace DapperMany.Samples.Services.Demos
 {
@@ -21,20 +19,17 @@ namespace DapperMany.Samples.Services.Demos
 
         public async Task ExecuteAsync(System.Data.IDbConnection connection, IOutputFormatter output, IErrorHandler errorHandler, IPedidoGenerator generator)
         {
-            output.WriteInfo("\n    ⏳ Inserting sample orders...\n");
+            output.WriteInfo($"Inserting {_count} sample orders...");
 
             try
             {
                 List<Pedido> orders = generator.GenerateBatch(_count);
 
+                var sw = Stopwatch.StartNew();
                 var rowsInserted = await connection.InsertManyAsync(orders);
-                output.WriteSuccess($"    ✓ Inserted {rowsInserted} order(s)\n");
+                sw.Stop();
 
-                foreach (var order in orders)
-                {
-                    output.WriteLine($"    - {order.NumeroDocumento}");
-                    output.WriteLine($"      Status: {order.Status}, Total: ${order.ValorTotal}");
-                }
+                output.WriteSuccess($"Inserted {rowsInserted} order(s) in {sw.Elapsed.TotalMilliseconds:N0} ms");
             }
             catch (Exception ex)
             {
