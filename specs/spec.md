@@ -49,6 +49,10 @@ public class Pedido
 
     [HasMany(foreignKey: nameof(ItemPedido.PedidoId))]
     public List<ItemPedido> Itens { get; set; }
+
+    // Exemplo 1:1 — usa [HasOne] para uma relação um-para-um (propriedade de referência única)
+    [HasOne(foreignKey: nameof(PedidoDetalhe.PedidoId))]
+    public PedidoDetalhe Detalhe { get; set; }
 }
 
 [Table("ItensPedido")]
@@ -78,13 +82,62 @@ await connection.DeleteManyAsync(pedidoIds);
 
 - **PK Identity é o cenário assumido como padrão** (não exige Guid no modelo do consumidor).
 - Correlação pai-filho é resolvida **inteiramente pela lib**, via reflection sobre a referência de objeto em memória — o consumidor nunca atribui FK manualmente.
-- Fluxo interno (`InsertManyGraphExecutor`):
-  1. Insere os registros pai (estratégia depende do provider — ver seção 6).
-  2. Popula o `Id` gerado de volta em cada entidade pai via setter compilado.
-  3. Para cada relação `[HasMany]`: propaga a FK do pai para os filhos via setter compilado.
-  4. Executa bulk copy nativo dos filhos.
-  5. Recursão para relações aninhadas (netos), se existirem.
+Fluxo interno (`InsertManyGraphExecutor`):
+
+1. Insere os registros pai (estratégia depende do provider — ver seção 6).
+2. Popula o `Id` gerado de volta em cada entidade pai via setter compilado.
+
+Nota de implementação — verificação de relações:
+Antes de processar qualquer relação marcada (`[HasMany]` ou `[HasOne]`), o executor deve verificar dois pontos importantes:
+
+- A propriedade de navegação existe e está mapeada (atributo presente na classe).
+- Há dados a inserir: para `[HasMany]`, a coleção não é nula e contém pelo menos um elemento; para `[HasOne]`, a propriedade de referência não é nula.
+
+Se não houver dados, o executor deve pular o processamento/insert dessa relação sem tentar construir batches ou chamar o bulk insert.
+
+3. Para cada relação marcada (`[HasMany]` ou `[HasOne]`):
+    - `[HasMany]`: para cada pai, enumera a coleção de filhos (ex: `List<TChild>`), propaga a FK do pai para cada filho via setter compilado e acumula os filhos em um lote por tipo.
+    - `[HasOne]`: para cada pai, se a propriedade de referência do filho não for nula, propaga a FK do pai para o filho via setter compilado e adiciona esse filho ao lote correspondente.
+4. Executa bulk copy nativo dos filhos agrupados por tipo (quando suportado pelo provider). Relações 1:1 são tratadas uniformemente com 1:N no fluxo de build: todos os filhos (sejam únicos ou coleções) são coletados em DataTables/batches e inseridos via a estratégia de bulk do provider quando possível.
+5. Recursão para relações aninhadas (netos), se existirem.
 - Insert do "pai" não é bulk-copy nativo na v1 (é sequencial ou multi-`VALUES` com retorno de Id) — decisão aceita porque, no caso de uso típico (Pedido → Itens), o volume de "pais" é ordens de magnitude menor que o de "filhos", onde está o real ganho de performance do bulk copy.
+
+#### 4.1.1 Edge Cases
+
+- **Children `null`**: Se a propriedade de navegação do pai for `null`, `InsertManyGraphAsync` deve inserir apenas o pai e pular os filhos.
+
+    ```csharp
+    var pedido = new Pedido { NumeroDocumento = "PED-NULL", Itens = null };
+    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere apenas o pai
+    ```
+
+- **Children vazio**: Se a coleção estiver vazia, também insere apenas o pai.
+
+    ```csharp
+    var pedido = new Pedido { NumeroDocumento = "PED-EMPTY", Itens = new List<ItemPedido>() };
+    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere apenas o pai
+    ```
+
+- **`[HasOne]` (1:1)**: Propriedades marcadas com `[HasOne]` são tratadas como um único filho. A implementação deve aceitar tanto coleções (`[HasMany]`) quanto referências simples (`[HasOne]`) e propagar a FK do pai para o filho.
+
+    ```csharp
+    [Table("Pedidos")]
+    public class Pedido {
+            [HasOne(nameof(PedidoDetalhe.PedidoId))]
+            public PedidoDetalhe Detalhe { get; set; }
+    }
+
+    var pedido = new Pedido { NumeroDocumento = "PED-DET", Detalhe = new PedidoDetalhe { /* ... */ } };
+    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere pai + detalhe (1:1)
+    ```
+
+- **Transações**: Se um `IDbTransaction` for passado para `InsertManyGraphAsync`, ela deve ser propagada para todas as operações (pais e filhos). Em caso de falha, a transação deve ser abatida (rollback) pelo chamador se a transação externa foi fornecida; se a lib criar a transação internamente, ela deve garantir rollback em falha.
+
+    ```csharp
+    using var tx = connection.BeginTransaction();
+    await connection.InsertManyGraphAsync(pedidos, tx);
+    tx.Commit();
+    ```
 
 ### 4.2 UpdateMany
 
@@ -192,7 +245,6 @@ Consumidor só precisa instalar o pacote do provider desejado — nenhuma config
 
 Correlação de Id gerado por posição no `VALUES` (SQL Server/Postgres) é comportamento consistente e usado em produção, mas deve ter cobertura de teste de integração dedicada, já que não é contrato formalmente documentado pela Microsoft no caso do `OUTPUT`.
 
----
 
 ## 7. Cache e thread-safety (fundação transversal)
 

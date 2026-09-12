@@ -134,11 +134,87 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             .Select(p => p.Name)
             .ToList();
 
-        var sql = dialect.GetInsertSql(metadata.TableName, columnNames, batch.Count);
+        // Build INSERT SQL with OUTPUT clause to retrieve inserted identities when key is identity
+        var quotedTable = dialect.QuoteIdentifier(metadata.TableName);
+        var quotedColumns = columnNames.Select(c => dialect.QuoteIdentifier(c)).ToList();
+        var columnList = string.Join(", ", quotedColumns);
+
+        var valuesList = new List<string>();
+        var paramIndex = 0;
+        for (int row = 0; row < batch.Count; row++)
+        {
+            var rowValues = new List<string>();
+            for (int col = 0; col < columnNames.Count; col++)
+            {
+                rowValues.Add(dialect.GetParameterPlaceholder(paramIndex++));
+            }
+            valuesList.Add($"({string.Join(", ", rowValues)})");
+        }
+
+        var sqlNoOutput = $"INSERT INTO {quotedTable} ({columnList}) VALUES {string.Join(", ", valuesList)};";
+
         var parameters = BuildInsertParameters(batch, metadata, columnNames);
 
+        // If the key property is an identity, use OUTPUT INSERTED to obtain IDs and set them on entities
+        if (metadata.IdentityProperties.Contains(metadata.KeyProperty))
+        {
+            var keyQuoted = dialect.QuoteIdentifier(metadata.KeyProperty.Name);
+            var sql = $"INSERT INTO {quotedTable} ({columnList}) OUTPUT INSERTED.{keyQuoted} VALUES {string.Join(", ", valuesList)};";
+
+            var insertedIds = (await connection.QueryAsync<int>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))).Cast<object?>().ToList();
+
+            // Assign IDs back to the entities if possible
+            var setter = AccessorFactory.CreateSetter(metadata.KeyProperty);
+            for (int i = 0; i < insertedIds.Count && i < batch.Count; i++)
+            {
+                var idValue = insertedIds[i];
+                if (idValue == null)
+                    continue;
+
+                // Unwrap SQL types (System.Data.SqlTypes) if necessary
+                var raw = idValue;
+                var t = raw.GetType();
+                if (t.Namespace == "System.Data.SqlTypes")
+                {
+                    var valProp = t.GetProperty("Value");
+                    if (valProp != null)
+                        raw = valProp.GetValue(raw)!;
+                }
+
+                // Assign using conversion to the target property type when possible
+                var targetType = metadata.KeyProperty.PropertyType;
+                try
+                {
+                    var converted = Convert.ChangeType(raw, targetType);
+                    setter(batch[i], converted!);
+                }
+                catch
+                {
+                    // Fallback: try direct assignment if types are compatible
+                    if (targetType.IsAssignableFrom(raw.GetType()))
+                    {
+                        setter(batch[i], raw);
+                    }
+                    else
+                    {
+                        // Last resort: try ToString -> parse for common types
+                        if (targetType == typeof(Guid))
+                        {
+                            setter(batch[i], Guid.Parse(raw.ToString()!));
+                        }
+                        else
+                        {
+                            setter(batch[i], raw);
+                        }
+                    }
+                }
+            }
+
+            return insertedIds.Count;
+        }
+
         var result = await connection.ExecuteAsync(
-            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+            new CommandDefinition(sqlNoOutput, parameters, cancellationToken: cancellationToken));
 
         return result;
     }
@@ -157,10 +233,23 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         {
             // Detect which properties have been set (non-default values)
             // For a partial update object, only Key + modified properties should be included
-            var columnNames = metadata.MappedProperties
+            var columnProps = metadata.MappedProperties
                 .Where(p => p != metadata.KeyProperty) // Exclude key from SET clause
-                .Select(p => p.Name)
+                .Where(p =>
+                {
+                    var getter = AccessorFactory.CreateGetter(p);
+                    var value = getter(entity);
+                    if (value == null) return false;
+                    if (p.PropertyType.IsValueType)
+                    {
+                        var defaultValue = Activator.CreateInstance(p.PropertyType);
+                        return !object.Equals(value, defaultValue);
+                    }
+                    return true; // non-null reference type
+                })
                 .ToList();
+
+            var columnNames = columnProps.Select(p => p.Name).ToList();
 
             if (columnNames.Count == 0)
                 continue; // Nothing to update if only Key is present
@@ -177,9 +266,8 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             var paramIndex = 0;
 
             // Add SET clause parameters
-            foreach (var columnName in columnNames)
+            foreach (var prop in columnProps)
             {
-                var prop = metadata.MappedProperties.First(p => p.Name == columnName);
                 var getter = AccessorFactory.CreateGetter(prop);
                 var value = getter(entity);
                 parameters.Add($"@param{paramIndex++}", value ?? DBNull.Value);

@@ -104,6 +104,46 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var sql = dialect.GetInsertSql(metadata.TableName, columnNames, batch.Count);
         var parameters = BuildInsertParameters(batch, metadata, columnNames);
 
+        // If identity key, perform insert then retrieve LAST_INSERT_ID() and assign sequential IDs to entities
+        if (metadata.IdentityProperties.Contains(metadata.KeyProperty))
+        {
+            var affected = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+
+            if (affected > 0)
+            {
+                // Retrieve base id for the first inserted row on this connection
+                var baseId = await connection.QuerySingleAsync<long>(new CommandDefinition(dialect.GetIdentityRetrievalSql(), cancellationToken: cancellationToken));
+
+                var setter = AccessorFactory.CreateSetter(metadata.KeyProperty);
+                var targetType = metadata.KeyProperty.PropertyType;
+
+                for (int i = 0; i < batch.Count; i++)
+                {
+                    var idValue = baseId + i;
+                    object converted;
+                    try
+                    {
+                        converted = Convert.ChangeType(idValue, targetType);
+                    }
+                    catch
+                    {
+                        if (targetType == typeof(Guid))
+                        {
+                            converted = Guid.Parse(idValue.ToString());
+                        }
+                        else
+                        {
+                            converted = idValue;
+                        }
+                    }
+
+                    setter(batch[i], converted);
+                }
+            }
+
+            return affected;
+        }
+
         var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
         return result;
     }
@@ -113,10 +153,23 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var totalUpdated = 0;
         foreach (var entity in batch)
         {
-            var columnNames = metadata.MappedProperties
+            var columnProps = metadata.MappedProperties
                 .Where(p => p != metadata.KeyProperty)
-                .Select(p => p.Name)
+                .Where(p =>
+                {
+                    var getter = AccessorFactory.CreateGetter(p);
+                    var value = getter(entity);
+                    if (value == null) return false;
+                    if (p.PropertyType.IsValueType)
+                    {
+                        var defaultValue = Activator.CreateInstance(p.PropertyType);
+                        return !object.Equals(value, defaultValue);
+                    }
+                    return true;
+                })
                 .ToList();
+
+            var columnNames = columnProps.Select(p => p.Name).ToList();
 
             if (columnNames.Count == 0) continue;
 
@@ -129,9 +182,8 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
 
             var parameters = new DynamicParameters();
             var paramIndex = 0;
-            foreach (var columnName in columnNames)
+            foreach (var prop in columnProps)
             {
-                var prop = metadata.MappedProperties.First(p => p.Name == columnName);
                 var getter = AccessorFactory.CreateGetter(prop);
                 var value = getter(entity);
                 parameters.Add($"@param{paramIndex++}", value ?? DBNull.Value);

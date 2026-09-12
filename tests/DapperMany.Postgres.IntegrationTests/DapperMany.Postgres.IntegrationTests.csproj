@@ -11,6 +11,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/DapperMany/DapperMany.csproj" />
     <ProjectReference Include="../../src/DapperMany.Postgres/DapperMany.Postgres.csproj" />
+    <ProjectReference Include="../../samples/DapperMany.Samples/DapperMany.Samples.csproj" />
   </ItemGroup>
 
   <ItemGroup>

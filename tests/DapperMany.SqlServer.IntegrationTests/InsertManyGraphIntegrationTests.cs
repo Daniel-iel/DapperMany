@@ -1,3 +1,4 @@
+using System;
 using System.Data;
 using System.Diagnostics;
 using DapperMany.Samples.Models;
@@ -18,14 +19,27 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Create SQL Server container
-        _container = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2019-latest")
-            .WithPassword("MyP@ssw0rd!!")
-            .Build();
+        // Allow using an existing SQL Server (e.g. docker-compose) by setting TEST_SQLSERVER_CONNECTIONSTRING.
+        var providedConnection = Environment.GetEnvironmentVariable("TEST_SQLSERVER_CONNECTIONSTRING");
+        if (!string.IsNullOrWhiteSpace(providedConnection))
+        {
+            _connectionString = providedConnection;
+        }
+        else
+        {
+            // Create SQL Server container (password read from env var or fallback to docker-compose value)
+            var saPassword = Environment.GetEnvironmentVariable("TEST_SQLSERVER_SA_PASSWORD") ?? "SqlServer123!";
+            _container = new MsSqlBuilder()
+                .WithImage("mcr.microsoft.com/mssql/server:2019-latest")
+                .WithPassword(saPassword)
+                .Build();
 
-        await _container.StartAsync();
-        _connectionString = _container.GetConnectionString();
+            await _container.StartAsync();
+            _connectionString = _container.GetConnectionString();
+        }
+
+        // Ensure SQL Server provider is registered (module initializer may not run under test host).
+        DapperMany.SqlServer.SqlServerProvider.Register();
 
         // Wait for SQL Server to accept connections (retry loop). Avoid flaky failures due to slow container startup.
         var ready = false;
@@ -65,32 +79,88 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        // Create Pedidos table
+        // Ensure database exists and switch to it (idempotent)
+        using var useDb = connection.CreateCommand();
+        useDb.CommandText = @"
+            IF DB_ID('DapperMany') IS NULL
+            BEGIN
+                CREATE DATABASE [DapperMany];
+            END
+            USE [DapperMany];
+        ";
+        await useDb.ExecuteNonQueryAsync();
+
+        // Create Pedidos table if it doesn't exist
         using var cmd1 = connection.CreateCommand();
         cmd1.CommandText = @"
-            CREATE TABLE Pedidos (
-                Id INT PRIMARY KEY IDENTITY(1,1),
-                NumeroDocumento NVARCHAR(50) NOT NULL UNIQUE,
-                DataPedido DATETIME2 NOT NULL,
-                ValorTotal DECIMAL(12,2) NOT NULL,
-                Status NVARCHAR(50) NOT NULL,
-                Created DATETIME2 NOT NULL,
-                Modified DATETIME2 NOT NULL
-            )";
+            IF OBJECT_ID('dbo.Pedidos','U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.Pedidos (
+                    Id INT PRIMARY KEY IDENTITY(1,1),
+                    NumeroDocumento NVARCHAR(50) NOT NULL UNIQUE,
+                    DataPedido DATETIME2 NOT NULL,
+                    ValorTotal DECIMAL(12,2) NOT NULL,
+                    Status NVARCHAR(50) NOT NULL,
+                    Created DATETIME2 NOT NULL,
+                    Modified DATETIME2 NOT NULL
+                );
+            END
+        ";
         await cmd1.ExecuteNonQueryAsync();
 
-        // Create ItensPedido table
+        // Create ItensPedido table if it doesn't exist
         using var cmd2 = connection.CreateCommand();
         cmd2.CommandText = @"
-            CREATE TABLE ItensPedido (
-                Id INT PRIMARY KEY IDENTITY(1,1),
-                PedidoId INT NOT NULL,
-                Descricao NVARCHAR(255) NOT NULL,
-                Quantidade INT NOT NULL,
-                ValorUnitario DECIMAL(12,2) NOT NULL,
-                FOREIGN KEY (PedidoId) REFERENCES Pedidos(Id)
-            )";
+            IF OBJECT_ID('dbo.ItensPedido','U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.ItensPedido (
+                    Id INT PRIMARY KEY IDENTITY(1,1),
+                    PedidoId INT NOT NULL,
+                    Descricao NVARCHAR(255) NOT NULL,
+                    Quantidade INT NOT NULL,
+                    ValorUnitario DECIMAL(12,2) NOT NULL,
+                    ValorTotal DECIMAL(12,2) NOT NULL,
+                    FOREIGN KEY (PedidoId) REFERENCES dbo.Pedidos(Id)
+                );
+            END
+        ";
         await cmd2.ExecuteNonQueryAsync();
+
+        // Clean up tables to ensure tests run idempotently (delete existing rows and reseed identities)
+        using var cleanup = connection.CreateCommand();
+        cleanup.CommandText = @"
+            DELETE FROM dbo.ItensPedido;
+            DELETE FROM dbo.Pedidos;
+            DBCC CHECKIDENT('dbo.Pedidos', RESEED, 0);
+            DBCC CHECKIDENT('dbo.ItensPedido', RESEED, 0);
+        ";
+        await cleanup.ExecuteNonQueryAsync();
+
+        // Ensure ValorTotal column exists in case DB schema is outdated
+        using var alter = connection.CreateCommand();
+        alter.CommandText = @"
+            IF COL_LENGTH('dbo.ItensPedido', 'ValorTotal') IS NULL
+            BEGIN
+                ALTER TABLE dbo.ItensPedido ADD ValorTotal DECIMAL(12,2) NOT NULL DEFAULT(0);
+            END
+        ";
+        await alter.ExecuteNonQueryAsync();
+        using var alterCreated = connection.CreateCommand();
+        alterCreated.CommandText = @"
+            IF COL_LENGTH('dbo.ItensPedido', 'Created') IS NULL
+            BEGIN
+                ALTER TABLE dbo.ItensPedido ADD Created DATETIME2 NOT NULL DEFAULT(GETDATE());
+            END
+        ";
+        await alterCreated.ExecuteNonQueryAsync();
+        using var alterModified = connection.CreateCommand();
+        alterModified.CommandText = @"
+            IF COL_LENGTH('dbo.ItensPedido', 'Modified') IS NULL
+            BEGIN
+                ALTER TABLE dbo.ItensPedido ADD Modified DATETIME2 NOT NULL DEFAULT(GETDATE());
+            END
+        ";
+        await alterModified.ExecuteNonQueryAsync();
     }
 
     [Fact]
@@ -127,7 +197,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
 
         // Verify children were inserted with correct FK
         using var selectChildren = connection.CreateCommand();
-        selectChildren.CommandText = "SELECT COUNT(*) FROM ItemPedidos WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-001')";
+        selectChildren.CommandText = "SELECT COUNT(*) FROM ItensPedido WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-001')";
         var childCount = (int?)await selectChildren.ExecuteScalarAsync() ?? 0;
         Assert.Equal(2, childCount);
     }
@@ -189,17 +259,17 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
 
         // Verify children counts
         using var selectChildrenA = connection.CreateCommand();
-        selectChildrenA.CommandText = "SELECT COUNT(*) FROM ItemPedidos WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-A')";
+        selectChildrenA.CommandText = "SELECT COUNT(*) FROM ItensPedido WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-A')";
         var childCountA = (int?)await selectChildrenA.ExecuteScalarAsync() ?? 0;
         Assert.Equal(1, childCountA);
 
         using var selectChildrenB = connection.CreateCommand();
-        selectChildrenB.CommandText = "SELECT COUNT(*) FROM ItemPedidos WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-B')";
+        selectChildrenB.CommandText = "SELECT COUNT(*) FROM ItensPedido WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-B')";
         var childCountB = (int?)await selectChildrenB.ExecuteScalarAsync() ?? 0;
         Assert.Equal(3, childCountB);
 
         using var selectChildrenC = connection.CreateCommand();
-        selectChildrenC.CommandText = "SELECT COUNT(*) FROM ItemPedidos WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-C')";
+        selectChildrenC.CommandText = "SELECT COUNT(*) FROM ItensPedido WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-C')";
         var childCountC = (int?)await selectChildrenC.ExecuteScalarAsync() ?? 0;
         Assert.Equal(0, childCountC);
     }
@@ -233,7 +303,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         using var selectFK = connection.CreateCommand();
         selectFK.CommandText = @"
             SELECT i.PedidoId 
-            FROM ItemPedidos i
+            FROM ItensPedido i
             INNER JOIN Pedidos p ON i.PedidoId = p.Id
             WHERE p.NumeroDocumento = 'PED-FK-TEST'";
         var insertedFK = (int?)await selectFK.ExecuteScalarAsync() ?? 0;
@@ -244,5 +314,38 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         selectParentId.CommandText = "SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-FK-TEST'";
         var parentId = (int?)await selectParentId.ExecuteScalarAsync() ?? 0;
         Assert.Equal(parentId, insertedFK);
+    }
+
+    [Fact]
+    public async Task InsertManyGraph_NullChildren_InsertsParentOnly()
+    {
+        // Arrange
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        var pedido = new Pedido
+        {
+            NumeroDocumento = "PED-NULL",
+            DataPedido = DateTime.UtcNow,
+            ValorTotal = 100m,
+            Status = "Pendente",
+            Itens = null
+        };
+
+        // Act
+        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+
+        // Assert
+        Assert.Equal(1, insertedCount);
+
+        using var selectParent = connection.CreateCommand();
+        selectParent.CommandText = "SELECT COUNT(*) FROM Pedidos WHERE NumeroDocumento = 'PED-NULL'";
+        var parentCount = (int?)await selectParent.ExecuteScalarAsync() ?? 0;
+        Assert.Equal(1, parentCount);
+
+        using var selectChildren = connection.CreateCommand();
+        selectChildren.CommandText = "SELECT COUNT(*) FROM ItensPedido WHERE PedidoId = (SELECT Id FROM Pedidos WHERE NumeroDocumento = 'PED-NULL')";
+        var childCount = (int?)await selectChildren.ExecuteScalarAsync() ?? 0;
+        Assert.Equal(0, childCount);
     }
 }

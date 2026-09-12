@@ -10,7 +10,7 @@ internal class PostgreSqlDialect : ISqlDialect
 {
     public string ProviderName => "PostgreSQL";
 
-    public string GetParameterPlaceholder(int parameterIndex) => $"${parameterIndex + 1}";
+    public string GetParameterPlaceholder(int parameterIndex) => $"@param{parameterIndex + 1}";
 
     public string GetIdentityRetrievalSql() => "SELECT LASTVAL();";
 

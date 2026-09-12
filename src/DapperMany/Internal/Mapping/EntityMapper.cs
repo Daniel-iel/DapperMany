@@ -60,11 +60,13 @@ public static class EntityMapper
             ?? throw new InvalidOperationException(
                 $"Type '{entityType.FullName}' has no [Key] property.");
 
-        // Collect all mapped properties (all public properties excluding [NotMapped])
+        // Collect all mapped properties (all public scalar properties excluding [NotMapped] and navigation properties)
         var mappedProperties = entityType
             .GetProperties(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
             .Where(p => p.CanRead && p.CanWrite)
             .Where(p => p.GetCustomAttribute<System.ComponentModel.DataAnnotations.Schema.NotMappedAttribute>() == null)
+            // Exclude navigation properties marked with HasMany/HasOne (they are handled as relationships)
+            .Where(p => p.GetCustomAttribute<DapperMany.Attributes.HasManyAttribute>() == null && p.GetCustomAttribute<DapperMany.Attributes.HasOneAttribute>() == null)
             .ToList();
 
         if (!mappedProperties.Contains(keyProperty))
@@ -76,25 +78,43 @@ public static class EntityMapper
                 == System.ComponentModel.DataAnnotations.Schema.DatabaseGeneratedOption.Identity)
             .ToList();
 
-        // Build relationships from [HasMany] properties (using custom DapperMany.Attributes.HasManyAttribute)
+        // Build relationships from [HasMany] and [HasOne] properties (using custom DapperMany.Attributes)
         var relationships = new Dictionary<string, RelationshipMetadata>();
         foreach (var prop in entityType.GetProperties())
         {
+            // HasMany (collection navigation)
             var hasMany = prop.GetCustomAttribute<HasManyAttribute>();
-            if (hasMany == null)
-                continue;
-
-            // Get the child type from the collection property
-            var childType = GetCollectionElementType(prop.PropertyType)
-                ?? throw new InvalidOperationException(
-                    $"Property '{prop.Name}' on '{entityType.FullName}' must be a collection type (e.g., List<T>, IEnumerable<T>).");
-
-            relationships[prop.Name] = new RelationshipMetadata
+            if (hasMany != null)
             {
-                NavigationProperty = prop,
-                ChildEntityType = childType,
-                ForeignKeyPropertyName = hasMany.ForeignKey
-            };
+                // Get the child type from the collection property
+                var childType = GetCollectionElementType(prop.PropertyType)
+                    ?? throw new InvalidOperationException(
+                        $"Property '{prop.Name}' on '{entityType.FullName}' must be a collection type (e.g., List<T>, IEnumerable<T>).");
+
+                relationships[prop.Name] = new RelationshipMetadata
+                {
+                    NavigationProperty = prop,
+                    ChildEntityType = childType,
+                    ForeignKeyPropertyName = hasMany.ForeignKey
+                };
+
+                continue;
+            }
+
+            // HasOne (single reference navigation)
+            var hasOne = prop.GetCustomAttribute<HasOneAttribute>();
+            if (hasOne != null)
+            {
+                var childType = prop.PropertyType;
+                relationships[prop.Name] = new RelationshipMetadata
+                {
+                    NavigationProperty = prop,
+                    ChildEntityType = childType,
+                    ForeignKeyPropertyName = hasOne.ForeignKey
+                };
+
+                continue;
+            }
         }
 
         var metadata = new EntityMetadata

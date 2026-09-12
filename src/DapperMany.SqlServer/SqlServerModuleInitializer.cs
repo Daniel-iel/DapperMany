@@ -7,13 +7,13 @@ namespace DapperMany.SqlServer;
 /// SQL Server provider module initialization.
 /// Automatically registers the SQL Server provider when the DapperMany.SqlServer assembly is loaded.
 /// </summary>
-internal static class SqlServerModule
+internal static class SqlServerModuleInitializer
 {
     /// <summary>
     /// Module initializer that runs automatically when the assembly is loaded.
     /// Registers the SQL Server provider with the global provider registry.
     /// </summary>
-    #pragma warning disable CA2255 // ModuleInitializer is used intentionally for automatic provider registration.
+#pragma warning disable CA2255 // ModuleInitializer is used intentionally for automatic provider registration.
     [ModuleInitializer]
     public static void Initialize()
     {
@@ -23,5 +23,5 @@ internal static class SqlServerModule
             new SqlServerBulkCopyStrategy(),
             new SqlServerIdentityRetrievalStrategy());
     }
-    #pragma warning restore CA2255
+#pragma warning restore CA2255
 }

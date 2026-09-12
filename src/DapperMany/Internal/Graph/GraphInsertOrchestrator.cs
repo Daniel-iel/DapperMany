@@ -36,10 +36,8 @@ internal class GraphInsertOrchestrator
         var bulkCopyStrategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
         var identityStrategy = ProviderRegistry.Instance.GetIdentityRetrievalStrategy(providerName);
 
-        int totalInserted = 0;
-
         // Step 1: Insert all parent entities
-        totalInserted += await bulkCopyStrategy.BulkInsertAsync(
+        var parentsInserted = await bulkCopyStrategy.BulkInsertAsync(
             connection, parentList, parentMetadata, cancellationToken);
 
         // Step 2: Retrieve generated identity values for parents
@@ -50,10 +48,10 @@ internal class GraphInsertOrchestrator
         // For now, assume they were set by the bulk insert operation
         // In a real scenario with SqlServer, use OUTPUT clause to capture IDs
 
-        // Step 3: Process each relationship
+        // Step 3: Process each relationship (insert children, but do not include them in the return value)
         foreach (var relationship in parentMetadata.Relationships.Values)
         {
-            totalInserted += await InsertChildrenForRelationship(
+            await InsertChildrenForRelationship(
                 connection,
                 parentList,
                 parentMetadata,
@@ -62,7 +60,7 @@ internal class GraphInsertOrchestrator
                 cancellationToken);
         }
 
-        return totalInserted;
+        return parentsInserted;
     }
 
     private static async Task<int> InsertChildrenForRelationship<TParent>(
@@ -75,21 +73,42 @@ internal class GraphInsertOrchestrator
     {
         var childEntityType = relationship.ChildEntityType;
         var navigationGetter = AccessorFactory.CreateGetter(relationship.NavigationProperty!);
-        var fkProperty = relationship.ForeignKeyProperty ??
-            throw new InvalidOperationException($"Foreign key property '{relationship.ForeignKeyPropertyName}' not resolved on {childEntityType.Name}.");
+
+        // Resolve foreign key property on child type if not already set
+        var fkProperty = relationship.ForeignKeyProperty;
+        if (fkProperty == null)
+        {
+            fkProperty = childEntityType.GetProperty(relationship.ForeignKeyPropertyName, BindingFlags.Public | BindingFlags.Instance);
+            if (fkProperty == null)
+            {
+                // Try to resolve via child metadata as a fallback
+                var childMeta = EntityMapper.GetMetadata(childEntityType);
+                fkProperty = childMeta.MappedProperties.FirstOrDefault(p => string.Equals(p.Name, relationship.ForeignKeyPropertyName, StringComparison.OrdinalIgnoreCase));
+            }
+
+            if (fkProperty == null)
+                throw new InvalidOperationException($"Foreign key property '{relationship.ForeignKeyPropertyName}' not resolved on {childEntityType.Name}.");
+
+            relationship.ForeignKeyProperty = fkProperty;
+        }
+
         var fkSetter = AccessorFactory.CreateSetter(fkProperty);
         var parentKeyGetter = AccessorFactory.CreateGetter(parentMetadata.KeyProperty!);
 
-        // Collect all children and populate their FK values
+        // Collect all children and populate their FK values (supports collection navigations and single-reference navigations)
         var allChildren = new List<object>();
 
         foreach (var parent in parents)
         {
-            var childCollection = navigationGetter(parent);
-            if (childCollection is System.Collections.IEnumerable children)
-            {
-                var parentKeyValue = parentKeyGetter(parent);
+            var navValue = navigationGetter(parent);
+            if (navValue == null)
+                continue;
 
+            var parentKeyValue = parentKeyGetter(parent);
+
+            // Treat string specially: do not enumerate it
+            if (navValue is System.Collections.IEnumerable children && !(navValue is string))
+            {
                 foreach (var child in children)
                 {
                     if (child != null)
@@ -100,18 +119,19 @@ internal class GraphInsertOrchestrator
                     }
                 }
             }
+            else
+            {
+                // Single child scenario (e.g., [HasOne])
+                fkSetter(navValue, parentKeyValue);
+                allChildren.Add(navValue);
+            }
         }
 
         if (allChildren.Count == 0)
             return 0;
 
         // Get metadata for child entity type
-        var getMetadataMethod = typeof(EntityMapper)
-            .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
-            .First(m => m.Name == "GetMetadata" && m.GetGenericArguments().Length == 0)
-            .MakeGenericMethod(childEntityType);
-
-        var childMetadata = (EntityMetadata)getMetadataMethod.Invoke(null, new[] { childEntityType })!;
+        var childMetadata = EntityMapper.GetMetadata(childEntityType);
 
         // Insert all children using reflection to call BulkInsertAsync with correct type
         var insertMethod = bulkCopyStrategy.GetType()
@@ -119,9 +139,17 @@ internal class GraphInsertOrchestrator
             .First(m => m.Name == "BulkInsertAsync" && m.IsGenericMethod)
             .MakeGenericMethod(childEntityType);
 
+        // Convert List<object> to a strongly-typed List<childEntityType> at runtime
+        var listType = typeof(System.Collections.Generic.List<>).MakeGenericType(childEntityType);
+        var typedList = (System.Collections.IList)Activator.CreateInstance(listType)!;
+        foreach (var c in allChildren)
+        {
+            typedList.Add(c);
+        }
+
         var task = (Task<int>)insertMethod.Invoke(
             bulkCopyStrategy,
-            new object[] { connection, allChildren, childMetadata, cancellationToken })!;
+            new object[] { connection, typedList, childMetadata, cancellationToken })!;
 
         return await task;
     }

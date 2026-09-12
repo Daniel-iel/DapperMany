@@ -1,10 +1,12 @@
 using Dapper;
+using DapperMany.MySql;
+using DapperMany.Postgres;
 using DapperMany.Samples.Models;
+using DapperMany.SqlServer;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
-using Npgsql;
 using MySqlConnector;
-using DapperMany.Internal.Abstractions;
+using Npgsql;
 
 namespace DapperMany.Samples;
 
@@ -22,37 +24,12 @@ class Program
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                 .Build();
 
-        // Ensure providers are registered (instantiate provider types via reflection if module initializers didn't run)
+        // Ensure providers are registered explicitly (idempotent)
         try
         {
-            void TryRegister(string providerName, string assemblyName, string dialectType, string bulkType, string identityType)
-            {
-                try
-                {
-                    var assemblyQualifiedDialect = dialectType + ", " + assemblyName;
-                    var assemblyQualifiedBulk = bulkType + ", " + assemblyName;
-                    var assemblyQualifiedIdentity = identityType + ", " + assemblyName;
-
-                    var dt = Type.GetType(assemblyQualifiedDialect, throwOnError: false);
-                    var bt = Type.GetType(assemblyQualifiedBulk, throwOnError: false);
-                    var it = Type.GetType(assemblyQualifiedIdentity, throwOnError: false);
-
-                    if (dt == null || bt == null || it == null)
-                        return; // provider assembly not present or types not accessible
-
-                    var dialect = (ISqlDialect?)Activator.CreateInstance(dt, nonPublic: true);
-                    var bulk = (IBulkCopyStrategy?)Activator.CreateInstance(bt, nonPublic: true);
-                    var identity = (IIdentityRetrievalStrategy?)Activator.CreateInstance(it, nonPublic: true);
-
-                    if (dialect == null || bulk == null || identity == null) return;
-
-                    ProviderRegistry.RegisterProvider(providerName, dialect, bulk, identity);
-                }
-                catch { }
-            }
-
-            TryRegister("PostgreSQL", "DapperMany.Postgres", "DapperMany.Postgres.PostgreSqlDialect", "DapperMany.Postgres.PostgreSqlBulkCopyStrategy", "DapperMany.Postgres.PostgreSqlIdentityRetrievalStrategy");
-            TryRegister("MySQL", "DapperMany.MySql", "DapperMany.MySql.MySqlDialect", "DapperMany.MySql.MySqlBulkCopyStrategy", "DapperMany.MySql.MySqlIdentityRetrievalStrategy");
+            SqlServerProvider.Register();
+            PostgreSqlProvider.Register();
+            MySqlProvider.Register();
         }
         catch { }
 
@@ -166,50 +143,11 @@ class Program
 
     static async Task ShowProviderDemo(System.Data.IDbConnection connection)
     {
-        var demoMenu = true;
-        while (demoMenu)
-        {
-            Console.WriteLine($"\n  Operations:\n");
-            Console.WriteLine("    1. Insert Multiple Orders");
-            Console.WriteLine("    2. Insert Orders with Items (InsertManyGraph)");
-            Console.WriteLine("    3. View Orders");
-            Console.WriteLine("    4. Update Orders");
-            Console.WriteLine("    5. Delete Orders");
-            Console.WriteLine("    0. Back\n");
-            Console.Write("    Choice: ");
-
-            if (int.TryParse(Console.ReadLine(), out var choice))
-            {
-                switch (choice)
-                {
-                    case 1:
-                        await RunInsertDemo(connection);
-                        break;
-                    case 2:
-                        await RunInsertManyGraphDemo(connection);
-                        break;
-                    case 3:
-                        await RunViewDemo(connection);
-                        break;
-                    case 4:
-                        await RunUpdateManyDemo(connection);
-                        break;
-                    case 5:
-                        await RunDeleteManyDemo(connection);
-                        break;
-                    case 0:
-                        demoMenu = false;
-                        break;
-                    default:
-                        Console.WriteLine("\n    Invalid choice. Try again.");
-                        break;
-                }
-            }
-            else
-            {
-                Console.WriteLine("\n    Invalid input. Try again.");
-            }
-        }
+        await RunInsertDemo(connection);
+        await RunInsertManyGraphDemo(connection);
+        await RunViewDemo(connection);
+        await RunUpdateManyDemo(connection);
+        await RunDeleteManyDemo(connection);
     }
 
     static async Task RunInsertDemo(System.Data.IDbConnection connection)
@@ -218,27 +156,22 @@ class Program
 
         try
         {
-            var orders = new List<Pedido>
+            var orders = new List<Pedido>(1500);
+
+            for (int i = 0; i < 1500; i++)
             {
-                new Pedido
+                orders.Add(new Pedido
                 {
                     NumeroDocumento = $"PED-{Guid.NewGuid().ToString()[..8].ToUpper()}",
                     DataPedido = DateTime.UtcNow,
-                    ValorTotal = 1500.00m,
+                    ValorTotal = 1000.00m + i,
                     Status = "Pendente"
-                },
-                new Pedido
-                {
-                    NumeroDocumento = $"PED-{Guid.NewGuid().ToString()[..8].ToUpper()}",
-                    DataPedido = DateTime.UtcNow,
-                    ValorTotal = 2500.00m,
-                    Status = "Processado"
-                }
-            };
+                });
+            }
 
             var rowsInserted = await connection.InsertManyAsync(orders);
             Console.WriteLine($"    ✓ Inserted {rowsInserted} order(s)\n");
-            
+
             foreach (var order in orders)
             {
                 Console.WriteLine($"    - {order.NumeroDocumento}");

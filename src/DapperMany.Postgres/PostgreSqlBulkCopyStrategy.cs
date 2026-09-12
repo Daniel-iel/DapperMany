@@ -134,11 +134,80 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             .Select(p => p.Name)
             .ToList();
 
-        var sql = dialect.GetInsertSql(metadata.TableName, columnNames, batch.Count);
+        // Build quoted names
+        var quotedTable = dialect.QuoteIdentifier(metadata.TableName);
+        var quotedColumns = columnNames.Select(c => dialect.QuoteIdentifier(c)).ToList();
+        var columnList = string.Join(", ", quotedColumns);
+
+        var valuesList = new List<string>();
+        var paramIndex = 0;
+        for (int row = 0; row < batch.Count; row++)
+        {
+            var rowValues = new List<string>();
+            for (int col = 0; col < columnNames.Count; col++)
+            {
+                rowValues.Add(dialect.GetParameterPlaceholder(paramIndex++));
+            }
+            valuesList.Add($"({string.Join(", ", rowValues)})");
+        }
+
         var parameters = BuildInsertParameters(batch, metadata, columnNames);
 
-        var result = await connection.ExecuteAsync(
-            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        // If the key property is an identity, use RETURNING to obtain IDs and set them on entities
+        if (metadata.IdentityProperties.Contains(metadata.KeyProperty))
+        {
+            var keyQuoted = dialect.QuoteIdentifier(metadata.KeyProperty.Name);
+            var sql = $"INSERT INTO {quotedTable} ({columnList}) VALUES {string.Join(", ", valuesList)} RETURNING {keyQuoted};";
+
+            var insertedIds = (await connection.QueryAsync<int>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))).Cast<object?>().ToList();
+
+            // Assign IDs back to the entities if possible
+            var setter = AccessorFactory.CreateSetter(metadata.KeyProperty);
+            for (int i = 0; i < insertedIds.Count && i < batch.Count; i++)
+            {
+                var idValue = insertedIds[i];
+                if (idValue == null)
+                    continue;
+
+                var raw = idValue;
+                var t = raw.GetType();
+                if (t.Namespace == "System.Data.SqlTypes")
+                {
+                    var valProp = t.GetProperty("Value");
+                    if (valProp != null)
+                        raw = valProp.GetValue(raw)!;
+                }
+
+                var targetType = metadata.KeyProperty.PropertyType;
+                try
+                {
+                    var converted = Convert.ChangeType(raw, targetType);
+                    setter(batch[i], converted!);
+                }
+                catch
+                {
+                    if (targetType.IsAssignableFrom(raw.GetType()))
+                    {
+                        setter(batch[i], raw);
+                    }
+                    else
+                    {
+                        if (targetType == typeof(Guid))
+                        {
+                            setter(batch[i], Guid.Parse(raw.ToString()!));
+                        }
+                        else
+                        {
+                            setter(batch[i], raw);
+                        }
+                    }
+                }
+            }
+
+            return insertedIds.Count;
+        }
+
+        var result = await connection.ExecuteAsync(new CommandDefinition($"INSERT INTO {quotedTable} ({columnList}) VALUES {string.Join(", ", valuesList)};", parameters, cancellationToken: cancellationToken));
 
         return result;
     }
@@ -155,12 +224,23 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         // Update each entity individually to handle partial objects correctly
         foreach (var entity in batch)
         {
-            // Detect which properties have been set (non-default values)
-            // For a partial update object, only Key + modified properties should be included
-            var columnNames = metadata.MappedProperties
-                .Where(p => p != metadata.KeyProperty) // Exclude key from SET clause
-                .Select(p => p.Name)
+            var columnProps = metadata.MappedProperties
+                .Where(p => p != metadata.KeyProperty)
+                .Where(p =>
+                {
+                    var getter = AccessorFactory.CreateGetter(p);
+                    var value = getter(entity);
+                    if (value == null) return false;
+                    if (p.PropertyType.IsValueType)
+                    {
+                        var defaultValue = Activator.CreateInstance(p.PropertyType);
+                        return !object.Equals(value, defaultValue);
+                    }
+                    return true; // non-null reference type
+                })
                 .ToList();
+
+            var columnNames = columnProps.Select(p => p.Name).ToList();
 
             if (columnNames.Count == 0)
                 continue; // Nothing to update if only Key is present
@@ -170,24 +250,22 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             var keyGetter = AccessorFactory.CreateGetter(keyProperty);
             var keyValue = keyGetter(entity);
 
-            var whereClause = $"WHERE {dialect.QuoteIdentifier(keyProperty.Name)} = $1";
+            var whereClause = $"WHERE {dialect.QuoteIdentifier(keyProperty.Name)} = {dialect.GetParameterPlaceholder(columnNames.Count)}";
             var sql = dialect.GetUpdateSql(metadata.TableName, columnNames, whereClause);
 
             var parameters = new DynamicParameters();
-            var paramIndex = 1;
+            var paramIndex = 0;
 
-            // Add SET clause parameters
-            foreach (var columnName in columnNames)
+            // Add SET clause parameters (param1..paramN)
+            foreach (var prop in columnProps)
             {
-                var prop = metadata.MappedProperties.First(p => p.Name == columnName);
                 var getter = AccessorFactory.CreateGetter(prop);
                 var value = getter(entity);
-                parameters.Add($"param{paramIndex}", value ?? DBNull.Value);
-                paramIndex++;
+                parameters.Add($"@param{++paramIndex}", value ?? DBNull.Value);
             }
 
-            // Add WHERE clause parameter
-            parameters.Add($"param{paramIndex}", keyValue);
+            // Add WHERE clause parameter (paramN+1)
+            parameters.Add($"@param{++paramIndex}", keyValue);
 
             var updated = await connection.ExecuteAsync(
                 new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
@@ -210,14 +288,14 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             .ToList();
 
         // Use ANY operator for batch deletion (PostgreSQL idiom)
-        var placeholders = string.Join(", ", Enumerable.Range(1, keyValues.Count).Select(i => $"${i}"));
+        var placeholders = string.Join(", ", Enumerable.Range(1, keyValues.Count).Select(i => $"@param{i}"));
         var whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} = ANY(ARRAY[{placeholders}])";
         var sql = dialect.GetDeleteSql(metadata.TableName, whereClause);
 
         var parameters = new DynamicParameters();
         for (int i = 0; i < keyValues.Count; i++)
         {
-            parameters.Add($"param{i + 1}", keyValues[i]);
+            parameters.Add($"@param{i + 1}", keyValues[i]);
         }
 
         var result = await connection.ExecuteAsync(
@@ -234,14 +312,14 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         CancellationToken cancellationToken)
     {
         // Use ANY operator for batch deletion (PostgreSQL idiom)
-        var placeholders = string.Join(", ", Enumerable.Range(1, keys.Count).Select(i => $"${i}"));
+        var placeholders = string.Join(", ", Enumerable.Range(1, keys.Count).Select(i => $"@param{i}"));
         var whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} = ANY(ARRAY[{placeholders}])";
         var sql = dialect.GetDeleteSql(metadata.TableName, whereClause);
 
         var parameters = new DynamicParameters();
         for (int i = 0; i < keys.Count; i++)
         {
-            parameters.Add($"param{i + 1}", keys[i]);
+            parameters.Add($"@param{i + 1}", keys[i]);
         }
 
         var result = await connection.ExecuteAsync(
@@ -256,7 +334,7 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
         List<string> columnNames) where T : class
     {
         var parameters = new DynamicParameters();
-        var paramIndex = 1;
+        var paramIndex = 0;
 
         foreach (var entity in batch)
         {
@@ -265,7 +343,7 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
                 var prop = metadata.MappedProperties.First(p => p.Name == columnName);
                 var getter = AccessorFactory.CreateGetter(prop);
                 var value = getter(entity);
-                parameters.Add($"param{paramIndex++}", value ?? DBNull.Value);
+                parameters.Add($"@param{++paramIndex}", value ?? DBNull.Value);
             }
         }
 

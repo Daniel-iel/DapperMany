@@ -18,14 +18,27 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
 
     public async Task InitializeAsync()
     {
-        // Create SQL Server container
-        _container = new MsSqlBuilder()
-            .WithImage("mcr.microsoft.com/mssql/server:2019-latest")
-            .WithPassword("MyP@ssw0rd!!")
-            .Build();
+        // Allow using an existing SQL Server (e.g. docker-compose) by setting TEST_SQLSERVER_CONNECTIONSTRING.
+        var providedConnection = Environment.GetEnvironmentVariable("TEST_SQLSERVER_CONNECTIONSTRING");
+        if (!string.IsNullOrWhiteSpace(providedConnection))
+        {
+            _connectionString = providedConnection;
+        }
+        else
+        {
+            // Create SQL Server container (password read from env var or fallback to docker-compose value)
+            var saPassword = Environment.GetEnvironmentVariable("TEST_SQLSERVER_SA_PASSWORD") ?? "SqlServer123!";
+            _container = new MsSqlBuilder()
+                .WithImage("mcr.microsoft.com/mssql/server:2019-latest")
+                .WithPassword(saPassword)
+                .Build();
 
-        await _container.StartAsync();
-        _connectionString = _container.GetConnectionString();
+            await _container.StartAsync();
+            _connectionString = _container.GetConnectionString();
+        }
+
+        // Ensure SQL Server provider is registered (module initializer may not run under test host).
+        DapperMany.SqlServer.SqlServerProvider.Register();
 
         // Wait for SQL Server to accept connections (retry loop). Avoid flaky failures due to slow container startup.
         var ready = false;
@@ -65,32 +78,61 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         using var connection = new SqlConnection(_connectionString);
         await connection.OpenAsync();
 
-        // Create Pedidos table
+        // Ensure database exists and switch to it (idempotent)
+        using var useDb = connection.CreateCommand();
+        useDb.CommandText = @"
+            IF DB_ID('DapperMany') IS NULL
+            BEGIN
+                CREATE DATABASE [DapperMany];
+            END
+            USE [DapperMany];
+        ";
+        await useDb.ExecuteNonQueryAsync();
+
+        // Create Pedidos table if it doesn't exist
         using var cmd1 = connection.CreateCommand();
         cmd1.CommandText = @"
-            CREATE TABLE Pedidos (
-                Id INT PRIMARY KEY IDENTITY(1,1),
-                NumeroDocumento NVARCHAR(50) NOT NULL UNIQUE,
-                DataPedido DATETIME2 NOT NULL,
-                ValorTotal DECIMAL(12,2) NOT NULL,
-                Status NVARCHAR(50) NOT NULL,
-                Created DATETIME2 NOT NULL,
-                Modified DATETIME2 NOT NULL
-            )";
+            IF OBJECT_ID('dbo.Pedidos','U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.Pedidos (
+                    Id INT PRIMARY KEY IDENTITY(1,1),
+                    NumeroDocumento NVARCHAR(50) NOT NULL UNIQUE,
+                    DataPedido DATETIME2 NOT NULL,
+                    ValorTotal DECIMAL(12,2) NOT NULL,
+                    Status NVARCHAR(50) NOT NULL,
+                    Created DATETIME2 NOT NULL,
+                    Modified DATETIME2 NOT NULL
+                );
+            END
+        ";
         await cmd1.ExecuteNonQueryAsync();
 
-        // Create ItensPedido table
+        // Create ItensPedido table if it doesn't exist
         using var cmd2 = connection.CreateCommand();
         cmd2.CommandText = @"
-            CREATE TABLE ItensPedido (
-                Id INT PRIMARY KEY IDENTITY(1,1),
-                PedidoId INT NOT NULL,
-                Descricao NVARCHAR(255) NOT NULL,
-                Quantidade INT NOT NULL,
-                ValorUnitario DECIMAL(12,2) NOT NULL,
-                FOREIGN KEY (PedidoId) REFERENCES Pedidos(Id)
-            )";
+            IF OBJECT_ID('dbo.ItensPedido','U') IS NULL
+            BEGIN
+                CREATE TABLE dbo.ItensPedido (
+                    Id INT PRIMARY KEY IDENTITY(1,1),
+                    PedidoId INT NOT NULL,
+                    Descricao NVARCHAR(255) NOT NULL,
+                    Quantidade INT NOT NULL,
+                    ValorUnitario DECIMAL(12,2) NOT NULL,
+                    FOREIGN KEY (PedidoId) REFERENCES dbo.Pedidos(Id)
+                );
+            END
+        ";
         await cmd2.ExecuteNonQueryAsync();
+
+        // Clean up tables to ensure tests run idempotently (delete existing rows and reseed identities)
+        using var cleanup = connection.CreateCommand();
+        cleanup.CommandText = @"
+            DELETE FROM dbo.ItensPedido;
+            DELETE FROM dbo.Pedidos;
+            DBCC CHECKIDENT('dbo.Pedidos', RESEED, 0);
+            DBCC CHECKIDENT('dbo.ItensPedido', RESEED, 0);
+        ";
+        await cleanup.ExecuteNonQueryAsync();
     }
 
     [Fact]
