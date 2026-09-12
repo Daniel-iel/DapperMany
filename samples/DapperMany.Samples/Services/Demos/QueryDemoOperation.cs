@@ -3,6 +3,7 @@ using DapperMany.Samples.Data;
 using DapperMany.Samples.Infrastructure.Error;
 using DapperMany.Samples.Infrastructure.Output;
 using DapperMany.Samples.Models;
+using System.Diagnostics;
 
 namespace DapperMany.Samples.Services.Demos
 {
@@ -16,7 +17,10 @@ namespace DapperMany.Samples.Services.Demos
 
             try
             {
+                var sw = Stopwatch.StartNew();
                 var orders = await connection.QueryAsync<Pedido>("SELECT Top 10 * FROM Pedidos ORDER BY Created DESC;");
+                sw.Stop();
+
                 var orderList = orders.ToList();
 
                 if (orderList.Count == 0)
@@ -25,7 +29,7 @@ namespace DapperMany.Samples.Services.Demos
                 }
                 else
                 {
-                    output.WriteInfo($"Found {orderList.Count}");
+                    output.WriteSuccess($"Found {orderList.Count} order(s) in {sw.Elapsed.TotalMilliseconds:N0} ms");
                 }
             }
             catch (Exception ex)
