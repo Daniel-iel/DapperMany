@@ -95,6 +95,9 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
                 ""Descricao"" VARCHAR(255) NOT NULL,
                 ""Quantidade"" INTEGER NOT NULL,
                 ""ValorUnitario"" NUMERIC(18,2) NOT NULL,
+                ""ValorTotal"" NUMERIC(18,2) NOT NULL DEFAULT 0,
+                ""Created"" TIMESTAMP NOT NULL DEFAULT now(),
+                ""Modified"" TIMESTAMP NOT NULL DEFAULT now(),
                 FOREIGN KEY (""PedidoId"") REFERENCES ""Pedidos""(""Id"")
             );
         ";

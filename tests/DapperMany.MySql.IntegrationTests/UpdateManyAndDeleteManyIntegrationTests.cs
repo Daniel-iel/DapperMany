@@ -91,6 +91,9 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
                 Descricao VARCHAR(255) NOT NULL,
                 Quantidade INT NOT NULL,
                 ValorUnitario DECIMAL(18,2) NOT NULL,
+                ValorTotal DECIMAL(18,2) NOT NULL DEFAULT 0,
+                Created DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                Modified DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                 CONSTRAINT FK_ItensPedido_Pedidos FOREIGN KEY (PedidoId) REFERENCES Pedidos(Id)
             );
         ";
