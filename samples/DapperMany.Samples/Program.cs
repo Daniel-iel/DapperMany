@@ -2,6 +2,9 @@ using Dapper;
 using DapperMany.Samples.Models;
 using Microsoft.Data.SqlClient;
 using Microsoft.Extensions.Configuration;
+using Npgsql;
+using MySqlConnector;
+using DapperMany.Internal.Abstractions;
 
 namespace DapperMany.Samples;
 
@@ -17,7 +20,41 @@ class Program
         var config = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
             .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
-            .Build();
+                .Build();
+
+        // Ensure providers are registered (instantiate provider types via reflection if module initializers didn't run)
+        try
+        {
+            void TryRegister(string providerName, string assemblyName, string dialectType, string bulkType, string identityType)
+            {
+                try
+                {
+                    var assemblyQualifiedDialect = dialectType + ", " + assemblyName;
+                    var assemblyQualifiedBulk = bulkType + ", " + assemblyName;
+                    var assemblyQualifiedIdentity = identityType + ", " + assemblyName;
+
+                    var dt = Type.GetType(assemblyQualifiedDialect, throwOnError: false);
+                    var bt = Type.GetType(assemblyQualifiedBulk, throwOnError: false);
+                    var it = Type.GetType(assemblyQualifiedIdentity, throwOnError: false);
+
+                    if (dt == null || bt == null || it == null)
+                        return; // provider assembly not present or types not accessible
+
+                    var dialect = (ISqlDialect?)Activator.CreateInstance(dt, nonPublic: true);
+                    var bulk = (IBulkCopyStrategy?)Activator.CreateInstance(bt, nonPublic: true);
+                    var identity = (IIdentityRetrievalStrategy?)Activator.CreateInstance(it, nonPublic: true);
+
+                    if (dialect == null || bulk == null || identity == null) return;
+
+                    ProviderRegistry.RegisterProvider(providerName, dialect, bulk, identity);
+                }
+                catch { }
+            }
+
+            TryRegister("PostgreSQL", "DapperMany.Postgres", "DapperMany.Postgres.PostgreSqlDialect", "DapperMany.Postgres.PostgreSqlBulkCopyStrategy", "DapperMany.Postgres.PostgreSqlIdentityRetrievalStrategy");
+            TryRegister("MySQL", "DapperMany.MySql", "DapperMany.MySql.MySqlDialect", "DapperMany.MySql.MySqlBulkCopyStrategy", "DapperMany.MySql.MySqlIdentityRetrievalStrategy");
+        }
+        catch { }
 
         var showMenu = true;
         while (showMenu)
@@ -37,10 +74,10 @@ class Program
                         await RunSqlServerDemo(config);
                         break;
                     case 2:
-                        Console.WriteLine("\n  PostgreSQL (available in Phase 9)\n");
+                        await RunPostgresDemo(config);
                         break;
                     case 3:
-                        Console.WriteLine("\n  MySQL (available in Phase 10)\n");
+                        await RunMySqlDemo(config);
                         break;
                     case 0:
                         showMenu = false;
@@ -77,6 +114,52 @@ class Program
         {
             Console.WriteLine($"  ✗ Error: {ex.Message}");
             Console.WriteLine($"     Make sure SQL Server is running and accessible");
+            Console.WriteLine($"     Connection: {connectionString}");
+        }
+    }
+
+    static async Task RunPostgresDemo(IConfiguration config)
+    {
+        Console.WriteLine("\n▶ PostgreSQL Demo\n");
+
+        var connectionString = config.GetConnectionString("PostgreSQL")
+            ?? throw new InvalidOperationException("PostgreSQL connection string not found");
+
+        try
+        {
+            using var connection = new NpgsqlConnection(connectionString);
+            await connection.OpenAsync();
+            Console.WriteLine("  ✓ Connected to PostgreSQL");
+
+            await ShowProviderDemo(connection);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ✗ Error: {ex.Message}");
+            Console.WriteLine($"     Make sure PostgreSQL is running and accessible");
+            Console.WriteLine($"     Connection: {connectionString}");
+        }
+    }
+
+    static async Task RunMySqlDemo(IConfiguration config)
+    {
+        Console.WriteLine("\n▶ MySQL Demo\n");
+
+        var connectionString = config.GetConnectionString("MySQL")
+            ?? throw new InvalidOperationException("MySQL connection string not found");
+
+        try
+        {
+            using var connection = new MySqlConnection(connectionString);
+            await connection.OpenAsync();
+            Console.WriteLine("  ✓ Connected to MySQL");
+
+            await ShowProviderDemo(connection);
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"  ✗ Error: {ex.Message}");
+            Console.WriteLine($"     Make sure MySQL is running and accessible");
             Console.WriteLine($"     Connection: {connectionString}");
         }
     }

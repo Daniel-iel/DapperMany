@@ -8,17 +8,42 @@ services:
     environment:
       ACCEPT_EULA: "Y"
       SA_PASSWORD: "SqlServer123!"
-      MSSQL_SA_PASSWORD: "SqlServer123!"
+      MSSQL_PID: "Express"
     ports:
       - "1433:1433"
     volumes:
       - ./sqlserver/init:/docker-entrypoint-initdb.d
       - sqlserver-data:/var/opt/mssql
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        /opt/mssql/bin/sqlservr &
+        PID=$$!
+        echo "Attempting to connect and initialize database..."
+        for i in {1..30}; do
+          echo "Connection attempt $$i/30..."
+          if /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'SqlServer123!' -Q 'SELECT 1' > /dev/null 2>&1; then
+            echo "SQL Server is ready! Running initialization script..."
+            /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'SqlServer123!' -i /docker-entrypoint-initdb.d/01-schema.sql
+            if [ $$? -eq 0 ]; then
+              echo "Database initialization successful!"
+            else
+              echo "Database initialization failed!"
+            fi
+            break
+          fi
+          echo "SQL Server not ready, waiting 2 seconds..."
+          sleep 2
+        done
+        echo "Keeping container alive..."
+        wait $$PID
     healthcheck:
-      test: ["CMD", "/opt/mssql-tools/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "SqlServer123!", "-Q", "SELECT 1"]
-      interval: 10s
-      timeout: 5s
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-C", "-S", "localhost", "-U", "sa", "-P", "SqlServer123!", "-Q", "SELECT 1"]
+      interval: 15s
+      timeout: 10s
       retries: 5
+      start_period: 120s
     networks:
       - dappermany-network
 

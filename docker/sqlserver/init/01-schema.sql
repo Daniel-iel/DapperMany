@@ -2,16 +2,13 @@
 -- This script creates the test database and tables
 
 -- Create database
-USE master;
-GO
-
-IF DB_ID('dappermany') IS NULL
+IF DB_ID('DapperMany') IS NULL
 BEGIN
-    CREATE DATABASE [dappermany];
+    CREATE DATABASE [DapperMany];
 END
 GO
 
-USE [dappermany];
+USE [DapperMany];
 GO
 
 -- Create Pedidos table
