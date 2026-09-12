@@ -19,6 +19,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (entities == null)
@@ -37,7 +38,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
             var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalInserted += inserted;
         }
 
@@ -48,6 +49,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (entities == null)
@@ -66,7 +68,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
             var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalUpdated += updated;
         }
 
@@ -77,6 +79,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (entities == null)
@@ -95,7 +98,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
             var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
 
@@ -106,6 +109,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<object> keys,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (keys == null)
@@ -124,7 +128,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < keyList.Count; i += RowsPerBatch)
         {
             var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
-            var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
 
@@ -136,6 +140,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         List<T> batch,
         EntityMetadata metadata,
         SqlServerDialect dialect,
+        IDbTransaction? transaction,
         CancellationToken cancellationToken) where T : class
     {
         var columnNames = metadata.MappedProperties
@@ -172,7 +177,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             var keyQuoted = dialect.QuoteIdentifier(metadata.KeyProperty.Name);
             var sql = $"INSERT INTO {quotedTable} ({columnList}) OUTPUT INSERTED.{keyQuoted} VALUES {string.Join(", ", valuesList)};";
 
-            var insertedIds = (await connection.QueryAsync<int>(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken))).Cast<object?>().ToList();
+            var insertedIds = (await connection.QueryAsync<int>(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken))).Cast<object?>().ToList();
 
             // Assign IDs back to the entities if possible
             var setter = AccessorFactory.CreateSetter(metadata.KeyProperty);
@@ -227,7 +232,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         }
 
         var result = await connection.ExecuteAsync(
-            new CommandDefinition(sqlNoOutput, parameters, cancellationToken: cancellationToken));
+            new CommandDefinition(sqlNoOutput, parameters, transaction: transaction, cancellationToken: cancellationToken));
 
         sw.Stop();
         Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (SqlServer): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
@@ -240,6 +245,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         List<T> batch,
         EntityMetadata metadata,
         SqlServerDialect dialect,
+        IDbTransaction? transaction,
         CancellationToken cancellationToken) where T : class
     {
         var totalUpdated = 0;
@@ -295,7 +301,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             parameters.Add("@key", keyValue);
 
             var updated = await connection.ExecuteAsync(
-                new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+                new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
 
             totalUpdated += updated;
         }
@@ -310,6 +316,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         List<T> batch,
         EntityMetadata metadata,
         SqlServerDialect dialect,
+        IDbTransaction? transaction,
         CancellationToken cancellationToken) where T : class
     {
         var keyValues = batch
@@ -329,7 +336,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
         var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
-            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+            new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
         sw.Stop();
         Debug.WriteLine($"[DAPPERMANY] BulkDelete {typeof(T).Name} (SqlServer): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
@@ -341,6 +348,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         List<object> keys,
         EntityMetadata metadata,
         SqlServerDialect dialect,
+        IDbTransaction? transaction,
         CancellationToken cancellationToken)
     {
         // Use IN clause for batch deletion
@@ -356,7 +364,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
         var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
-            new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+            new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
         sw.Stop();
         Debug.WriteLine($"[DAPPERMANY] BulkDeleteByKeys (SqlServer): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 

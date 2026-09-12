@@ -131,7 +131,24 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
     await connection.InsertManyGraphAsync(new[] { pedido }); // Insere pai + detalhe (1:1)
     ```
 
-- **Transações**: Se um `IDbTransaction` for passado para `InsertManyGraphAsync`, ela deve ser propagada para todas as operações (pais e filhos). Em caso de falha, a transação deve ser abatida (rollback) pelo chamador se a transação externa foi fornecida; se a lib criar a transação internamente, ela deve garantir rollback em falha.
+- **Transações (obrigatório para operações em massa)**: Todas as operações em lote (`InsertMany`, `InsertManyGraph`, `UpdateMany`, `DeleteMany`) devem obrigatoriamente ser executadas dentro de uma transação associada ao `IDbConnection` usado pela operação.
+
+    Regras de comportamento:
+
+    - Se o chamador fornecer um `IDbTransaction` (parâmetro `tx`), a biblioteca deve usar e propagar essa transação para todas as operações internas (pais, filhos, staging tables, bulk copy). A biblioteca NÃO deve efetuar `Commit` ou `Rollback` quando a transação foi fornecida externamente; a responsabilidade por `Commit`/`Rollback` permanece com o chamador.
+    - Se o chamador NÃO fornecer um `IDbTransaction` (`tx == null`), a biblioteca deve criar uma transação local via `connection.BeginTransaction()` antes de iniciar qualquer operação que modifique o banco. Quando a biblioteca cria a transação, ela é proprietária dela e deve:
+        - `Commit` automaticamente quando a operação completar com sucesso;
+        - `Rollback` automaticamente em caso de exceção durante a operação;
+        - Garantir o `Dispose`/liberação da transação em um bloco `finally`.
+    - A transação (fornecida ou criada internamente) deve envolver todas as fases da operação: inserção/atualização/exclusão de pais, população de FKs, bulk copy dos filhos e qualquer leitura/recuperação de identities necessária. Não devem existir operações que modifiquem o estado do banco fora do escopo dessa transação.
+    - Isolamento: na v1 a biblioteca usará o `IsolationLevel` padrão do provider (tipicamente `ReadCommitted`). Expor controle de `IsolationLevel` ou sobrecarga com parâmetro de isolamento fica para versões futuras.
+
+    Observações por provider (nota de implementação):
+    - **SQL Server**: a transação é necessária para garantir a consistência do `OUTPUT/INSERTED` e para que operações como `SqlBulkCopy` sejam executadas no contexto correto da connection/transaction quando aplicável.
+    - **PostgreSQL**: o `RETURNING` deve ser executado na mesma transação criada/fornecida para garantir correlação e consistência de dados.
+    - **MySQL**: estratégias que dependem de `LAST_INSERT_ID()` ou de loaders (ex: `MySqlBulkLoader`/CSV) devem executar-se no mesmo `IDbConnection` e dentro da transação fornecida/criada; garantir ordenação de commit/flush para manter consistência.
+
+    Exemplo de uso com transação fornecida pelo chamador:
 
     ```csharp
     using var tx = connection.BeginTransaction();
@@ -139,17 +156,36 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
     tx.Commit();
     ```
 
+    Quando a biblioteca cria a transação internamente, o comportamento esperado é:
+
+    ```csharp
+    // impl. interna da biblioteca (exemplo conceitual)
+    using var tx = connection.BeginTransaction();
+    try {
+        // executar inserts/updates/deletes de pai, bulk dos filhos, identity retrieval
+        tx.Commit();
+    }
+    catch {
+        tx.Rollback();
+        throw;
+    }
+    ```
+
+    A responsabilidade pela política de commit/rollback (ownership) deve ser documentada no README e refletida em logs/diagnósticos para facilitar troubleshooting.
+
 ### 4.2 UpdateMany
 
 - Recebe um objeto **parcial**: `[Key]` (obrigatória, usada para o `JOIN`/`MERGE`) + apenas os campos que devem ser atualizados.
 - O `SET` do `UPDATE` é gerado dinamicamente a partir das propriedades presentes no tipo passado — sem lista de colunas manual.
 - Mecanismo: staging table (bulk copy do objeto parcial) + `UPDATE ... FROM` (SQL Server/Postgres) ou `UPDATE ... JOIN` (MySQL).
 - Fora de escopo na v1: dirty-tracking automático (atualizar só campos alterados de uma entidade completa). Fica documentado como possível v2.
+ - Transações: `UpdateManyAsync` deve obedecer à política de transação definida na seção "Transações (obrigatório para operações em massa)" — use a transação fornecida pelo chamador ou crie/gerencie internamente uma transação que envolva o staging table + o `UPDATE` final e qualquer leitura necessária para recuperação de identidades.
 
 ### 4.3 DeleteMany
 
 - Aceita lista de entidades completas ou lista de chaves (`IEnumerable<object> keys`).
 - Fora de escopo na v1: cascade automático via `[HasMany]` — cada nível deve ser deletado explicitamente respeitando FKs.
+ - Transações: `DeleteManyAsync` deve executar dentro de uma transação conforme a política "Transações (obrigatório para operações em massa)". Quando a lib criar a transação internamente, ela deve garantir rollback em falha e commit em sucesso; se a transação for fornecida, a biblioteca deve apenas propagar as operações para essa transação sem efetuar commit/rollback.
 
 ### 4.4 Logging de Operações e Duração (Debug only)
 

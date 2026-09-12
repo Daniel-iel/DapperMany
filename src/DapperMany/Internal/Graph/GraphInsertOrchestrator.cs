@@ -28,6 +28,7 @@ internal class GraphInsertOrchestrator
         IEnumerable<TParent> parents,
         EntityMetadata parentMetadata,
         string providerName,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where TParent : class
     {
         var parentList = parents.ToList();
@@ -43,7 +44,7 @@ internal class GraphInsertOrchestrator
         // Step 1: Insert all parent entities
         var swParent = Stopwatch.StartNew();
         var parentsInserted = await bulkCopyStrategy.BulkInsertAsync(
-            connection, parentList, parentMetadata, cancellationToken);
+            connection, parentList, parentMetadata, transaction, cancellationToken);
         swParent.Stop();
 
         Debug.WriteLine($"[DAPPERMANY] GraphInsert {typeof(TParent).Name} (Parents - {providerName}): affected={parentsInserted}, elapsed={swParent.ElapsedMilliseconds}ms");
@@ -66,6 +67,7 @@ internal class GraphInsertOrchestrator
                 parentMetadata,
                 relationship,
                 bulkCopyStrategy,
+                transaction,
                 cancellationToken);
 
             totalChildrenInserted += childrenInserted;
@@ -83,6 +85,7 @@ internal class GraphInsertOrchestrator
         EntityMetadata parentMetadata,
         RelationshipMetadata relationship,
         IBulkCopyStrategy bulkCopyStrategy,
+        IDbTransaction? transaction,
         CancellationToken cancellationToken) where TParent : class
     {
         var childEntityType = relationship.ChildEntityType;
@@ -164,7 +167,7 @@ internal class GraphInsertOrchestrator
         var sw = Stopwatch.StartNew();
         var task = (Task<int>)insertMethod.Invoke(
             bulkCopyStrategy,
-            new object[] { connection, typedList, childMetadata, cancellationToken })!;
+            new object[] { connection, typedList, childMetadata, transaction, cancellationToken })!;
 
         var insertedChildren = await task;
         sw.Stop();

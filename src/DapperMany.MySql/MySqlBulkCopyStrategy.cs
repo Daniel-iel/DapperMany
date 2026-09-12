@@ -3,6 +3,7 @@ using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
 using System.Diagnostics;
+using System.Threading;
 
 namespace DapperMany.MySql;
 
@@ -11,7 +12,12 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
     private const int MaxParametersPerBatch = 65535; // conservative
     private const int RowsPerBatch = 50;
 
-    public async Task<int> BulkInsertAsync<T>(IDbConnection connection, IEnumerable<T> entities, EntityMetadata metadata, CancellationToken cancellationToken = default) where T : class
+    public async Task<int> BulkInsertAsync<T>(
+        IDbConnection connection,
+        IEnumerable<T> entities,
+        EntityMetadata metadata,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default) where T : class
     {
         if (entities == null) throw new ArgumentNullException(nameof(entities));
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
@@ -25,14 +31,19 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
             var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalInserted += inserted;
         }
 
         return totalInserted;
     }
 
-    public async Task<int> BulkUpdateAsync<T>(IDbConnection connection, IEnumerable<T> entities, EntityMetadata metadata, CancellationToken cancellationToken = default) where T : class
+    public async Task<int> BulkUpdateAsync<T>(
+        IDbConnection connection,
+        IEnumerable<T> entities,
+        EntityMetadata metadata,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default) where T : class
     {
         if (entities == null) throw new ArgumentNullException(nameof(entities));
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
@@ -46,14 +57,19 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
             var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalUpdated += updated;
         }
 
         return totalUpdated;
     }
 
-    public async Task<int> BulkDeleteAsync<T>(IDbConnection connection, IEnumerable<T> entities, EntityMetadata metadata, CancellationToken cancellationToken = default) where T : class
+    public async Task<int> BulkDeleteAsync<T>(
+        IDbConnection connection,
+        IEnumerable<T> entities,
+        EntityMetadata metadata,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default) where T : class
     {
         if (entities == null) throw new ArgumentNullException(nameof(entities));
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
@@ -67,14 +83,19 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
             var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
 
         return totalDeleted;
     }
 
-    public async Task<int> BulkDeleteByKeysAsync<T>(IDbConnection connection, IEnumerable<object> keys, EntityMetadata metadata, CancellationToken cancellationToken = default) where T : class
+    public async Task<int> BulkDeleteByKeysAsync<T>(
+        IDbConnection connection,
+        IEnumerable<object> keys,
+        EntityMetadata metadata,
+        IDbTransaction? transaction = null,
+        CancellationToken cancellationToken = default) where T : class
     {
         if (keys == null) throw new ArgumentNullException(nameof(keys));
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
@@ -88,14 +109,20 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < keyList.Count; i += RowsPerBatch)
         {
             var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
-            var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, cancellationToken);
+            var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
 
         return totalDeleted;
     }
 
-    private async Task<int> InsertBatchAsync<T>(IDbConnection connection, List<T> batch, EntityMetadata metadata, MySqlDialect dialect, CancellationToken cancellationToken) where T : class
+    private async Task<int> InsertBatchAsync<T>(
+        IDbConnection connection,
+        List<T> batch,
+        EntityMetadata metadata,
+        MySqlDialect dialect,
+        IDbTransaction? transaction,
+        CancellationToken cancellationToken) where T : class
     {
         var columnNames = metadata.MappedProperties
             .Where(p => !metadata.IdentityProperties.Contains(p))
@@ -109,12 +136,12 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         // If identity key, perform insert then retrieve LAST_INSERT_ID() and assign sequential IDs to entities
         if (metadata.IdentityProperties.Contains(metadata.KeyProperty))
         {
-            var affected = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+            var affected = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
 
             if (affected > 0)
             {
                 // Retrieve base id for the first inserted row on this connection
-                var baseId = await connection.QuerySingleAsync<long>(new CommandDefinition(dialect.GetIdentityRetrievalSql(), cancellationToken: cancellationToken));
+                var baseId = await connection.QuerySingleAsync<long>(new CommandDefinition(dialect.GetIdentityRetrievalSql(), transaction: transaction, cancellationToken: cancellationToken));
 
                 var setter = AccessorFactory.CreateSetter(metadata.KeyProperty);
                 var targetType = metadata.KeyProperty.PropertyType;
@@ -148,14 +175,20 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             return affected;
         }
 
-        var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
         sw.Stop();
         Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (MySql): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
 
         return result;
     }
 
-    private async Task<int> UpdateBatchAsync<T>(IDbConnection connection, List<T> batch, EntityMetadata metadata, MySqlDialect dialect, CancellationToken cancellationToken) where T : class
+    private async Task<int> UpdateBatchAsync<T>(
+        IDbConnection connection,
+        List<T> batch,
+        EntityMetadata metadata,
+        MySqlDialect dialect,
+        IDbTransaction? transaction,
+        CancellationToken cancellationToken) where T : class
     {
         var totalUpdated = 0;
         var sw = Stopwatch.StartNew();
@@ -199,7 +232,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
 
             parameters.Add("@key", keyValue);
 
-            var updated = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+            var updated = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
             totalUpdated += updated;
         }
 
@@ -208,7 +241,13 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         return totalUpdated;
     }
 
-    private async Task<int> DeleteBatchAsync<T>(IDbConnection connection, List<T> batch, EntityMetadata metadata, MySqlDialect dialect, CancellationToken cancellationToken) where T : class
+    private async Task<int> DeleteBatchAsync<T>(
+        IDbConnection connection,
+        List<T> batch,
+        EntityMetadata metadata,
+        MySqlDialect dialect,
+        IDbTransaction? transaction,
+        CancellationToken cancellationToken) where T : class
     {
         var keyValues = batch.Select(e => AccessorFactory.CreateGetter(metadata.KeyProperty)(e)).ToList();
         var inClause = string.Join(", ", Enumerable.Range(0, keyValues.Count).Select(i => $"@key{i}"));
@@ -219,13 +258,19 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < keyValues.Count; i++) parameters.Add($"@key{i}", keyValues[i]);
 
         var sw = Stopwatch.StartNew();
-        var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
         sw.Stop();
         Debug.WriteLine($"[DAPPERMANY] BulkDelete {typeof(T).Name} (MySql): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
         return result;
     }
 
-    private async Task<int> DeleteKeyBatchAsync(IDbConnection connection, List<object> keys, EntityMetadata metadata, MySqlDialect dialect, CancellationToken cancellationToken)
+    private async Task<int> DeleteKeyBatchAsync(
+        IDbConnection connection,
+        List<object> keys,
+        EntityMetadata metadata,
+        MySqlDialect dialect,
+        IDbTransaction? transaction,
+        CancellationToken cancellationToken)
     {
         var inClause = string.Join(", ", Enumerable.Range(0, keys.Count).Select(i => $"@key{i}"));
         var whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} IN ({inClause})";
@@ -235,7 +280,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         for (int i = 0; i < keys.Count; i++) parameters.Add($"@key{i}", keys[i]);
 
         var sw = Stopwatch.StartNew();
-        var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, cancellationToken: cancellationToken));
+        var result = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
         sw.Stop();
         Debug.WriteLine($"[DAPPERMANY] BulkDeleteByKeys (MySql): affected={result}, elapsed={sw.ElapsedMilliseconds}ms");
         return result;

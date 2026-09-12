@@ -25,6 +25,7 @@ public interface IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class;
 
     /// <summary>
@@ -40,6 +41,7 @@ public interface IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class;
 
     /// <summary>
@@ -55,6 +57,7 @@ public interface IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class;
 
     /// <summary>
@@ -70,5 +73,6 @@ public interface IBulkCopyStrategy
         IDbConnection connection,
         IEnumerable<object> keys,
         EntityMetadata metadata,
+        IDbTransaction? transaction = null,
         CancellationToken cancellationToken = default) where T : class;
 }

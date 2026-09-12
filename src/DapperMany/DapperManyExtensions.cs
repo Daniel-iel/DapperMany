@@ -22,16 +22,43 @@ public static class DapperManyExtensions
     public static async Task<int> InsertManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
+        IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (connection == null) throw new ArgumentNullException(nameof(connection));
         if (entities == null) throw new ArgumentNullException(nameof(entities));
-
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return await strategy.BulkInsertAsync(connection, entities, metadata, cancellationToken);
+        var localTx = tx;
+        var created = false;
+        if (localTx == null)
+        {
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+            localTx = connection.BeginTransaction();
+            created = true;
+        }
+
+        try
+        {
+            var result = await strategy.BulkInsertAsync(connection, entities, metadata, localTx, cancellationToken);
+            if (created)
+                localTx.Commit();
+            return result;
+        }
+        catch
+        {
+            if (created)
+                localTx.Rollback();
+            throw;
+        }
+        finally
+        {
+            if (created)
+                localTx.Dispose();
+        }
     }
 
     /// <summary>
@@ -45,16 +72,43 @@ public static class DapperManyExtensions
     public static async Task<int> UpdateManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
+        IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (connection == null) throw new ArgumentNullException(nameof(connection));
         if (entities == null) throw new ArgumentNullException(nameof(entities));
-
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return await strategy.BulkUpdateAsync(connection, entities, metadata, cancellationToken);
+        var localTx = tx;
+        var created = false;
+        if (localTx == null)
+        {
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+            localTx = connection.BeginTransaction();
+            created = true;
+        }
+
+        try
+        {
+            var result = await strategy.BulkUpdateAsync(connection, entities, metadata, localTx, cancellationToken);
+            if (created)
+                localTx.Commit();
+            return result;
+        }
+        catch
+        {
+            if (created)
+                localTx.Rollback();
+            throw;
+        }
+        finally
+        {
+            if (created)
+                localTx.Dispose();
+        }
     }
 
     /// <summary>
@@ -68,16 +122,43 @@ public static class DapperManyExtensions
     public static async Task<int> DeleteManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
+        IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (connection == null) throw new ArgumentNullException(nameof(connection));
         if (entities == null) throw new ArgumentNullException(nameof(entities));
-
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return await strategy.BulkDeleteAsync(connection, entities, metadata, cancellationToken);
+        var localTx = tx;
+        var created = false;
+        if (localTx == null)
+        {
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+            localTx = connection.BeginTransaction();
+            created = true;
+        }
+
+        try
+        {
+            var result = await strategy.BulkDeleteAsync(connection, entities, metadata, localTx, cancellationToken);
+            if (created)
+                localTx.Commit();
+            return result;
+        }
+        catch
+        {
+            if (created)
+                localTx.Rollback();
+            throw;
+        }
+        finally
+        {
+            if (created)
+                localTx.Dispose();
+        }
     }
 
     /// <summary>
@@ -91,16 +172,43 @@ public static class DapperManyExtensions
     public static async Task<int> DeleteManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<object> keys,
+        IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (connection == null) throw new ArgumentNullException(nameof(connection));
         if (keys == null) throw new ArgumentNullException(nameof(keys));
-
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return await strategy.BulkDeleteByKeysAsync<T>(connection, keys, metadata, cancellationToken);
+        var localTx = tx;
+        var created = false;
+        if (localTx == null)
+        {
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+            localTx = connection.BeginTransaction();
+            created = true;
+        }
+
+        try
+        {
+            var result = await strategy.BulkDeleteByKeysAsync<T>(connection, keys, metadata, localTx, cancellationToken);
+            if (created)
+                localTx.Commit();
+            return result;
+        }
+        catch
+        {
+            if (created)
+                localTx.Rollback();
+            throw;
+        }
+        finally
+        {
+            if (created)
+                localTx.Dispose();
+        }
     }
 
     /// <summary>
@@ -129,6 +237,7 @@ public static class DapperManyExtensions
     public static async Task<int> InsertManyGraphAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
+        IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
         if (connection == null) throw new ArgumentNullException(nameof(connection));
@@ -137,8 +246,35 @@ public static class DapperManyExtensions
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
 
-        return await Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(
-            connection, entities, metadata, providerName, cancellationToken);
+        var localTx = tx;
+        var created = false;
+        if (localTx == null)
+        {
+            if (connection.State != ConnectionState.Open)
+                connection.Open();
+            localTx = connection.BeginTransaction();
+            created = true;
+        }
+
+        try
+        {
+            var result = await Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(
+                connection, entities, metadata, providerName, localTx, cancellationToken);
+            if (created)
+                localTx.Commit();
+            return result;
+        }
+        catch
+        {
+            if (created)
+                localTx.Rollback();
+            throw;
+        }
+        finally
+        {
+            if (created)
+                localTx.Dispose();
+        }
     }
 
     /// <summary>
