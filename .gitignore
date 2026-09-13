@@ -25,6 +25,9 @@ bld/
  
 .vs/
 
+node_modules/
+.next
+
 # .NET Core
 project.lock.json
 project.fragment.lock.json
