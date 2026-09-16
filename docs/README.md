@@ -14,12 +14,14 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-To build for production:
+To build for production (generates static export for GitHub Pages):
 
 ```bash
 npm run build
 npm run start
 ```
+
+**Note:** The GitHub Pages configuration (`output: 'export'`, `basePath`, `assetPrefix`) only applies during production builds. Development mode (`npm run dev`) works normally without any deployment configuration.
 
 ## Features
 
@@ -84,3 +86,33 @@ Code snippets are shared (not translated) and live in `content/code.ts`.
 
 No other changes are needed — the language switcher, persistence and all
 components read from `LANGS`/`CONTENT` automatically.
+
+## Deployment to GitHub Pages
+
+The documentation is automatically deployed to GitHub Pages via GitHub Actions:
+
+**Live site:** https://daniel-iel.github.io/DapperMany/
+
+### Deployment workflow
+
+- **Trigger:** When you create a GitHub release (e.g., `v1.0.0`)
+- **Process:**
+  1. GitHub Actions checks out the code
+  2. Installs Node.js 20 and npm dependencies
+  3. Runs `npm run build` to generate static files in `./out`
+  4. Uploads the `./out` folder as an artifact
+  5. Deploys to GitHub Pages automatically
+- **Result:** Site is live at https://daniel-iel.github.io/DapperMany/ within 1-2 minutes
+
+### Manual workflow dispatch
+
+You can also manually trigger a deployment without creating a release:
+
+1. Go to your GitHub repo
+2. Click **Actions** → **Deploy Docs to GitHub Pages**
+3. Click **Run workflow** → **Run workflow**
+4. Site deploys immediately
+
+### Language support
+
+All three languages (English, Portuguese, Spanish) are deployed together. Language switching happens client-side via the language selector in the top bar — no separate builds or deployments needed.
