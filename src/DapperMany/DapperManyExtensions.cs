@@ -19,25 +19,24 @@ public static class DapperManyExtensions
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows inserted</returns>
     /// <exception cref="InvalidOperationException">If the entity type has no [Table] attribute or provider is not registered</exception>
-    public static async Task<int> InsertManyAsync<T>(
+    public static Task<int> InsertManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (connection == null) throw new ArgumentNullException(nameof(connection));
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
-        return await ExecuteWithTransactionAsync<int>(
+
+        return ExecuteWithTransactionAsync<int>(
             connection,
             tx,
-            async (conn, localTx) =>
-            {
-                return await strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken);
-            },
-            cancellationToken);
+            async (conn, localTx) => await strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken));
     }
 
     /// <summary>
@@ -48,25 +47,26 @@ public static class DapperManyExtensions
     /// <param name="entities">Entities to update</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows updated</returns>
-    public static async Task<int> UpdateManyAsync<T>(
+    public static Task<int> UpdateManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (connection == null) throw new ArgumentNullException(nameof(connection));
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
-        return await ExecuteWithTransactionAsync<int>(
+
+        return ExecuteWithTransactionAsync<int>(
             connection,
             tx,
-            async (conn, localTx) =>
-            {
-                return await strategy.BulkUpdateAsync(conn, entities, metadata, localTx, cancellationToken);
-            },
-            cancellationToken);
+            (conn, localTx) => strategy.BulkUpdateAsync(conn, entities, metadata, localTx, cancellationToken));
     }
 
     /// <summary>
@@ -77,25 +77,26 @@ public static class DapperManyExtensions
     /// <param name="entities">Entities to delete (only key values are used)</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows deleted</returns>
-    public static async Task<int> DeleteManyAsync<T>(
+    public static Task<int> DeleteManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (connection == null) throw new ArgumentNullException(nameof(connection));
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
+
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
-        return await ExecuteWithTransactionAsync<int>(
+
+        return ExecuteWithTransactionAsync<int>(
             connection,
             tx,
-            async (conn, localTx) =>
-            {
-                return await strategy.BulkDeleteAsync(conn, entities, metadata, localTx, cancellationToken);
-            },
-            cancellationToken);
+            (conn, localTx) => strategy.BulkDeleteAsync(conn, entities, metadata, localTx, cancellationToken));
     }
 
     /// <summary>
@@ -106,25 +107,26 @@ public static class DapperManyExtensions
     /// <param name="keys">Key values of entities to delete</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows deleted</returns>
-    public static async Task<int> DeleteManyAsync<T>(
+    public static Task<int> DeleteManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<object> keys,
         IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (connection == null) throw new ArgumentNullException(nameof(connection));
-        if (keys == null) throw new ArgumentNullException(nameof(keys));
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
+        if (keys == null)
+            throw new ArgumentNullException(nameof(keys));
+
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
-        return await ExecuteWithTransactionAsync<int>(
+
+        return ExecuteWithTransactionAsync<int>(
             connection,
             tx,
-            async (conn, localTx) =>
-            {
-                return await strategy.BulkDeleteByKeysAsync<T>(conn, keys, metadata, localTx, cancellationToken);
-            },
-            cancellationToken);
+            (conn, localTx) => strategy.BulkDeleteByKeysAsync<T>(conn, keys, metadata, localTx, cancellationToken));
     }
 
     /// <summary>
@@ -141,7 +143,7 @@ public static class DapperManyExtensions
     /// Usage example:
     /// var orders = new List&lt;Pedido&gt;
     /// {
-    ///     new Pedido { NumeroDocumento = "PED-001", Itens = new List&lt;ItemPedido&gt; 
+    ///     new Pedido { NumeroDocumento = "PED-001", Itens = new List&lt;ItemPedido&gt;
     ///     {
     ///         new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 100 }
     ///     }}
@@ -150,25 +152,25 @@ public static class DapperManyExtensions
     /// // Pedido.Id will be populated from database
     /// // ItemPedido.PedidoId will be auto-populated from Pedido.Id
     /// </remarks>
-    public static async Task<int> InsertManyGraphAsync<T>(
+    public static Task<int> InsertManyGraphAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
         CancellationToken cancellationToken = default) where T : class
     {
-        if (connection == null) throw new ArgumentNullException(nameof(connection));
-        if (entities == null) throw new ArgumentNullException(nameof(entities));
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
+        if (entities == null)
+            throw new ArgumentNullException(nameof(entities));
 
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
-        return await ExecuteWithTransactionAsync<int>(
+
+        return ExecuteWithTransactionAsync<int>(
             connection,
             tx,
-            async (conn, localTx) =>
-            {
-                return await Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken);
-            },
-            cancellationToken);
+            (conn, localTx) => Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken));
     }
 
     /// <summary>
@@ -179,11 +181,13 @@ public static class DapperManyExtensions
         IDbConnection connection,
         IDbTransaction? externalTransaction,
         Func<IDbConnection, IDbTransaction, Task<T>> operation,
-        CancellationToken cancellationToken = default,
         IsolationLevel? isolationLevel = null)
     {
-        if (connection == null) throw new ArgumentNullException(nameof(connection));
-        if (operation == null) throw new ArgumentNullException(nameof(operation));
+        if (connection == null)
+            throw new ArgumentNullException(nameof(connection));
+
+        if (operation == null)
+            throw new ArgumentNullException(nameof(operation));
 
         var localTx = externalTransaction;
         var created = false;
