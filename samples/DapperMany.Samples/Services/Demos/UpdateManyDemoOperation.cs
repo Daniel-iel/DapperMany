@@ -46,10 +46,13 @@ namespace DapperMany.Samples.Services.Demos
                 }
 
                 var sw = Stopwatch.StartNew();
-                var updatedCount = await connection.UpdateManyAsync(ordersToUpdate);
+                var result = await connection.UpdateManyAsync(ordersToUpdate);
                 sw.Stop();
 
-                output.WriteSuccess($"Updated {updatedCount} orders successfully in {sw.Elapsed.TotalMilliseconds:N0} ms");
+                output.WriteSuccess($"Updated {result.RowsUpdated} orders successfully in {result.Duration.TotalMilliseconds:N0} ms");
+                if (!result.IsSuccessful)
+                    foreach (var error in result.Errors)
+                        output.WriteError($"Error at index {error.EntityIndex}: {error.Message}");
             }
             catch (Exception ex)
             {

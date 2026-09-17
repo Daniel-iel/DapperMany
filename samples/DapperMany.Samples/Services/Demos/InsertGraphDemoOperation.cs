@@ -53,10 +53,16 @@ namespace DapperMany.Samples.Services.Demos
                 }
 
                 var sw = Stopwatch.StartNew();
-                int insertedCount = await connection.InsertManyGraphAsync(orders);
+                var result = await connection.InsertManyGraphAsync(orders);
                 sw.Stop();
 
-                output.WriteSuccess($"Successfully inserted {insertedCount} order(s) with items in {sw.Elapsed.TotalMilliseconds:N0} ms");
+                output.WriteSuccess($"Successfully inserted {result.TotalRowsAffected} rows in {result.Duration.TotalMilliseconds:N0} ms");
+                output.WriteInfo($"  Parent orders: {result.RowsInserted}");
+                if (result.RelatedEntities.TryGetValue("ItemPedido", out var itemCount))
+                    output.WriteInfo($"  Child items: {itemCount}");
+                
+                if (result.GeneratedIds.Count > 0)
+                    output.WriteInfo($"  Generated IDs: {string.Join(", ", result.GeneratedIds.Take(3))}...");
             }
             catch (Exception ex)
             {

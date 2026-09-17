@@ -123,6 +123,43 @@ Console.WriteLine($"Deleted {deleteCount} orders");
 
 Snippet source: [samples/DapperMany.Samples/Program.cs](samples/DapperMany.Samples/Program.cs#L361-L374)
 
+## Change Tracking & Telemetry (v3.0+)
+All bulk operations now return `BulkOperationResult<T>` with comprehensive telemetry including duration, generated IDs, and error tracking.
+
+### Monitoring Performance
+```csharp
+var result = await connection.InsertManyAsync(orders);
+Console.WriteLine($"Inserted {result.RowsInserted} orders in {result.Duration.TotalMilliseconds}ms");
+Console.WriteLine($"Generated IDs: {string.Join(", ", result.GeneratedIds)}");
+```
+
+### Error Tracking
+```csharp
+var result = await connection.UpdateManyAsync(orders);
+if (!result.IsSuccessful)
+{
+    foreach (var error in result.Errors)
+    {
+        Console.WriteLine($"Error updating row {error.EntityIndex}: {error.Message}");
+        if (error.Exception != null)
+            Console.WriteLine($"  Exception: {error.Exception}");
+    }
+}
+```
+
+### Graph Operations with Related Entity Tracking
+```csharp
+var result = await connection.InsertManyGraphAsync(pedidos);
+Console.WriteLine($"Total rows inserted: {result.TotalRowsAffected}");
+if (result.RelatedEntities.TryGetValue("ItemPedido", out var itemCount))
+{
+    Console.WriteLine($"  Parent Pedidos: {result.RowsInserted - itemCount}");
+    Console.WriteLine($"  Child ItemPedidos: {itemCount}");
+}
+```
+
+For detailed migration instructions from v2.x to v3.0, see [MIGRATION_GUIDE_v3.0.md](MIGRATION_GUIDE_v3.0.md).
+
 ## Mapping Attributes
 - `[Table("Name")]` — maps a CLR class to a DB table.
 - `[Key]` — marks the primary key property.

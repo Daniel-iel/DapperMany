@@ -1,4 +1,5 @@
 using Dapper;
+using DapperMany.Internal;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
@@ -15,7 +16,7 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
     private const int MaxParametersPerBatch = 32767; // PostgreSQL parameter limit (theoretical)
     private const int RowsPerBatch = 50; // Conservative batch size
 
-    public async Task<int> BulkInsertAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkInsertAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -27,10 +28,11 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new PostgreSqlDialect();
         var totalInserted = 0;
+        var sw = Stopwatch.StartNew();
 
         // Process in batches to avoid extremely large statements
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
@@ -40,10 +42,14 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             totalInserted += inserted;
         }
 
-        return totalInserted;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsInserted(totalInserted)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
-    public async Task<int> BulkUpdateAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkUpdateAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -55,9 +61,10 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new PostgreSqlDialect();
+        var sw = Stopwatch.StartNew();
         var totalUpdated = 0;
 
         // Process in batches
@@ -68,10 +75,14 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             totalUpdated += updated;
         }
 
-        return totalUpdated;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsUpdated(totalUpdated)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
-    public async Task<int> BulkDeleteAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkDeleteAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -83,9 +94,10 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new PostgreSqlDialect();
+        var sw = Stopwatch.StartNew();
         var totalDeleted = 0;
 
         // Process in batches
@@ -96,10 +108,14 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             totalDeleted += deleted;
         }
 
-        return totalDeleted;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsDeleted(totalDeleted)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
-    public async Task<int> BulkDeleteByKeysAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkDeleteByKeysAsync<T>(
         IDbConnection connection,
         IEnumerable<object> keys,
         EntityMetadata metadata,
@@ -111,10 +127,11 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
 
         var keyList = keys.ToList();
         if (keyList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new PostgreSqlDialect();
         var totalDeleted = 0;
+        var sw = Stopwatch.StartNew();
 
         // Process in batches
         for (int i = 0; i < keyList.Count; i += RowsPerBatch)
@@ -124,7 +141,11 @@ internal class PostgreSqlBulkCopyStrategy : IBulkCopyStrategy
             totalDeleted += deleted;
         }
 
-        return totalDeleted;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsDeleted(totalDeleted)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
     private async Task<int> InsertBatchAsync<T>(

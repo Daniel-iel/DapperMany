@@ -27,11 +27,58 @@ Permitir que o consumidor declare classes com attributes representando tabelas d
 ```csharp
 public static class DbConnectionExtensions
 {
-    Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task InsertManyGraphAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task UpdateManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<object> keys, IDbTransaction? tx = null);
+    // Bulk Insert with telemetry
+    Task<BulkOperationResult<T>> InsertManyAsync<T>(
+        this IDbConnection cn, 
+        IEnumerable<T> entities, 
+        IDbTransaction? tx = null);
+    
+    // Graph insert with parent-child relationship tracking
+    Task<BulkOperationResult<T>> InsertManyGraphAsync<T>(
+        this IDbConnection cn, 
+        IEnumerable<T> entities, 
+        IDbTransaction? tx = null);
+    
+    // Bulk Update with telemetry
+    Task<BulkOperationResult<T>> UpdateManyAsync<T>(
+        this IDbConnection cn, 
+        IEnumerable<T> entities, 
+        IDbTransaction? tx = null);
+    
+    // Bulk Delete (by entities)
+    Task<BulkOperationResult<T>> DeleteManyAsync<T>(
+        this IDbConnection cn, 
+        IEnumerable<T> entities, 
+        IDbTransaction? tx = null);
+    
+    // Bulk Delete (by keys)
+    Task<BulkOperationResult<T>> DeleteManyAsync<T>(
+        this IDbConnection cn, 
+        IEnumerable<object> keys, 
+        IDbTransaction? tx = null);
+}
+
+// Result type with comprehensive telemetry (v3.0+)
+public record BulkOperationResult<T> where T : class
+{
+    public int RowsInserted { get; init; }
+    public int RowsUpdated { get; init; }
+    public int RowsDeleted { get; init; }
+    public int TotalRowsAffected { get; }  // = RowsInserted + RowsUpdated + RowsDeleted
+    
+    public TimeSpan Duration { get; init; }
+    public IReadOnlyList<object> GeneratedIds { get; init; }
+    public IReadOnlyDictionary<string, int> RelatedEntities { get; init; }
+    
+    public IReadOnlyList<OperationError> Errors { get; init; }
+    public bool IsSuccessful { get; }  // = Errors.Count == 0
+}
+
+public record OperationError
+{
+    public int EntityIndex { get; init; }
+    public required string Message { get; init; }
+    public Exception? Exception { get; init; }
 }
 ```
 
