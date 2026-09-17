@@ -37,7 +37,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         // Process in batches to avoid exceeding parameter limits
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = entityList.GetRange(i, Math.Min(RowsPerBatch, entityList.Count - i));
             var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalInserted += inserted;
         }
@@ -67,7 +67,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         // Process in batches
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = entityList.GetRange(i, Math.Min(RowsPerBatch, entityList.Count - i));
             var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalUpdated += updated;
         }
@@ -97,7 +97,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         // Process in batches
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = entityList.GetRange(i, Math.Min(RowsPerBatch, entityList.Count - i));
             var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
@@ -127,7 +127,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         // Process in batches
         for (int i = 0; i < keyList.Count; i += RowsPerBatch)
         {
-            var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = keyList.GetRange(i, Math.Min(RowsPerBatch, keyList.Count - i));
             var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
@@ -144,7 +144,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         CancellationToken cancellationToken) where T : class
     {
         var columnNames = metadata.MappedProperties
-            .Where(p => !metadata.IdentityProperties.Contains(p))
+            .Where(p => !metadata.IdentityPropertySet.Contains(p))
             .Select(p => p.Name)
             .ToList();
 
@@ -172,7 +172,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         var parameters = BuildInsertParameters(batch, metadata, columnNames);
 
         // If the key property is an identity, use OUTPUT INSERTED to obtain IDs and set them on entities
-        if (metadata.IdentityProperties.Contains(metadata.KeyProperty))
+        if (metadata.HasIdentityKey)
         {
             var keyQuoted = dialect.QuoteIdentifier(metadata.KeyProperty.Name);
             var sql = $"INSERT INTO {quotedTable} ({columnList}) OUTPUT INSERTED.{keyQuoted} VALUES {string.Join(", ", valuesList)};";

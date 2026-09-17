@@ -20,12 +20,12 @@ internal class PostgreSqlDialect : ISqlDialect
         var quotedColumns = columnNames.Select(QuoteIdentifier).ToList();
 
         var columnList = string.Join(", ", quotedColumns);
-        var valuesList = new List<string>();
+        var valuesList = new List<string>(rowCount);
 
         var paramIndex = 0;
         for (int row = 0; row < rowCount; row++)
         {
-            var rowValues = new List<string>();
+            var rowValues = new List<string>(columnNames.Count);
             for (int col = 0; col < columnNames.Count; col++)
             {
                 rowValues.Add(GetParameterPlaceholder(paramIndex++));
@@ -39,7 +39,7 @@ internal class PostgreSqlDialect : ISqlDialect
     public string GetUpdateSql(string tableName, IReadOnlyList<string> columnNames, string whereCondition)
     {
         var quotedTable = QuoteIdentifier(tableName);
-        var setClauses = new List<string>();
+        var setClauses = new List<string>(columnNames.Count);
 
         var paramIndex = 0;
         foreach (var columnName in columnNames)

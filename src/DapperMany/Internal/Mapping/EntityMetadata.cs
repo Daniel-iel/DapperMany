@@ -35,6 +35,16 @@ public sealed record EntityMetadata
     public required IReadOnlyList<PropertyInfo> IdentityProperties { get; init; }
 
     /// <summary>
+    /// Set-based view of identity properties for fast membership checks during bulk operations.
+    /// </summary>
+    public required IReadOnlySet<PropertyInfo> IdentityPropertySet { get; init; }
+
+    /// <summary>
+    /// Indicates whether the key property is database-generated.
+    /// </summary>
+    public bool HasIdentityKey => IdentityPropertySet.Contains(KeyProperty);
+
+    /// <summary>
     /// Relationships defined via [HasMany], keyed by the property name on the parent entity.
     /// </summary>
     public required IReadOnlyDictionary<string, RelationshipMetadata> Relationships { get; init; }
