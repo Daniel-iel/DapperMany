@@ -34,10 +34,13 @@ namespace DapperMany.Samples.Services.Demos
                 }
 
                 var sw = Stopwatch.StartNew();
-                var deleteCount = await connection.DeleteManyAsync(ordersToDelete);
+                var result = await connection.DeleteManyAsync(ordersToDelete);
                 sw.Stop();
 
-                output.WriteSuccess($"Deleted {deleteCount} orders successfully in {sw.Elapsed.TotalMilliseconds:N0} ms");
+                output.WriteSuccess($"Deleted {result.RowsDeleted} orders successfully in {result.Duration.TotalMilliseconds:N0} ms");
+                if (!result.IsSuccessful)
+                    foreach (var error in result.Errors)
+                        output.WriteError($"Error at index {error.EntityIndex}: {error.Message}");
             }
             catch (Exception ex)
             {

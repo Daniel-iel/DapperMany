@@ -1,6 +1,8 @@
 using Dapper;
+using DapperMany.Internal;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
+using DapperMany.Internal.Observability;
 using System.Data;
 using System.Diagnostics;
 
@@ -15,7 +17,7 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
     private const int MaxParametersPerBatch = 2100; // SQL Server parameter limit
     private const int RowsPerBatch = 50; // Conservative batch size for parameters
 
-    public async Task<int> BulkInsertAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkInsertAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -29,23 +31,62 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new SqlServerDialect();
         var totalInserted = 0;
+        var sw = Stopwatch.StartNew();
+        var (scope, operationId) = TelemetryContext.BeginOperation();
 
-        // Process in batches to avoid exceeding parameter limits
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        try
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
-            totalInserted += inserted;
-        }
+            using (scope)
+            {
+                var telemetry = TelemetryContext.GetCurrentTelemetry();
 
-        return totalInserted;
+                // Process in batches to avoid exceeding parameter limits
+                for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+                {
+                    var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+                    var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
+                    totalInserted += inserted;
+                }
+
+                // Record telemetry
+                if (telemetry != null)
+                {
+                    telemetry.RowsInserted = totalInserted;
+                    sw.Stop();
+                    telemetry.Duration = sw.Elapsed;
+
+                    // Build result from telemetry
+                    return BulkOperationResult<T>.Builder()
+                        .WithRowsInserted(telemetry.RowsInserted)
+                        .WithGeneratedIds(telemetry.GeneratedIds)
+                        .WithDuration(telemetry.Duration)
+                        .Build();
+                }
+
+                // Fallback if no telemetry context
+                sw.Stop();
+                return BulkOperationResult<T>.Builder()
+                    .WithRowsInserted(totalInserted)
+                    .WithDuration(sw.Elapsed)
+                    .Build();
+            }
+        }
+        catch (Exception ex)
+        {
+            var telemetry = TelemetryContext.GetCurrentTelemetry();
+            if (telemetry != null)
+            {
+                telemetry.Errors.Add($"BulkInsert failed: {ex.Message}");
+            }
+            throw;
+        }
     }
 
-    public async Task<int> BulkUpdateAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkUpdateAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -59,23 +100,59 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new SqlServerDialect();
         var totalUpdated = 0;
+        var sw = Stopwatch.StartNew();
+        var (scope, operationId) = TelemetryContext.BeginOperation();
 
-        // Process in batches
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        try
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
-            totalUpdated += updated;
-        }
+            using (scope)
+            {
+                var telemetry = TelemetryContext.GetCurrentTelemetry();
 
-        return totalUpdated;
+                // Process in batches
+                for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+                {
+                    var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+                    var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
+                    totalUpdated += updated;
+                }
+
+                // Record telemetry
+                if (telemetry != null)
+                {
+                    telemetry.RowsUpdated = totalUpdated;
+                    sw.Stop();
+                    telemetry.Duration = sw.Elapsed;
+
+                    return BulkOperationResult<T>.Builder()
+                        .WithRowsUpdated(telemetry.RowsUpdated)
+                        .WithDuration(telemetry.Duration)
+                        .Build();
+                }
+
+                sw.Stop();
+                return BulkOperationResult<T>.Builder()
+                    .WithRowsUpdated(totalUpdated)
+                    .WithDuration(sw.Elapsed)
+                    .Build();
+            }
+        }
+        catch (Exception ex)
+        {
+            var telemetry = TelemetryContext.GetCurrentTelemetry();
+            if (telemetry != null)
+            {
+                telemetry.Errors.Add($"BulkUpdate failed: {ex.Message}");
+            }
+            throw;
+        }
     }
 
-    public async Task<int> BulkDeleteAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkDeleteAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -89,23 +166,59 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
         var entityList = entities.ToList();
         if (entityList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new SqlServerDialect();
         var totalDeleted = 0;
+        var sw = Stopwatch.StartNew();
+        var (scope, operationId) = TelemetryContext.BeginOperation();
 
-        // Process in batches
-        for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+        try
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
-            var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
-            totalDeleted += deleted;
-        }
+            using (scope)
+            {
+                var telemetry = TelemetryContext.GetCurrentTelemetry();
 
-        return totalDeleted;
+                // Process in batches
+                for (int i = 0; i < entityList.Count; i += RowsPerBatch)
+                {
+                    var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+                    var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
+                    totalDeleted += deleted;
+                }
+
+                // Record telemetry
+                if (telemetry != null)
+                {
+                    telemetry.RowsDeleted = totalDeleted;
+                    sw.Stop();
+                    telemetry.Duration = sw.Elapsed;
+
+                    return BulkOperationResult<T>.Builder()
+                        .WithRowsDeleted(telemetry.RowsDeleted)
+                        .WithDuration(telemetry.Duration)
+                        .Build();
+                }
+
+                sw.Stop();
+                return BulkOperationResult<T>.Builder()
+                    .WithRowsDeleted(totalDeleted)
+                    .WithDuration(sw.Elapsed)
+                    .Build();
+            }
+        }
+        catch (Exception ex)
+        {
+            var telemetry = TelemetryContext.GetCurrentTelemetry();
+            if (telemetry != null)
+            {
+                telemetry.Errors.Add($"BulkDelete failed: {ex.Message}");
+            }
+            throw;
+        }
     }
 
-    public async Task<int> BulkDeleteByKeysAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkDeleteByKeysAsync<T>(
         IDbConnection connection,
         IEnumerable<object> keys,
         EntityMetadata metadata,
@@ -119,20 +232,56 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
         var keyList = keys.ToList();
         if (keyList.Count == 0)
-            return 0;
+            return new BulkOperationResult<T>();
 
         var dialect = new SqlServerDialect();
         var totalDeleted = 0;
+        var sw = Stopwatch.StartNew();
+        var (scope, operationId) = TelemetryContext.BeginOperation();
 
-        // Process in batches
-        for (int i = 0; i < keyList.Count; i += RowsPerBatch)
+        try
         {
-            var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
-            var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
-            totalDeleted += deleted;
-        }
+            using (scope)
+            {
+                var telemetry = TelemetryContext.GetCurrentTelemetry();
 
-        return totalDeleted;
+                // Process in batches
+                for (int i = 0; i < keyList.Count; i += RowsPerBatch)
+                {
+                    var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
+                    var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
+                    totalDeleted += deleted;
+                }
+
+                // Record telemetry
+                if (telemetry != null)
+                {
+                    telemetry.RowsDeleted = totalDeleted;
+                    sw.Stop();
+                    telemetry.Duration = sw.Elapsed;
+
+                    return BulkOperationResult<T>.Builder()
+                        .WithRowsDeleted(telemetry.RowsDeleted)
+                        .WithDuration(telemetry.Duration)
+                        .Build();
+                }
+
+                sw.Stop();
+                return BulkOperationResult<T>.Builder()
+                    .WithRowsDeleted(totalDeleted)
+                    .WithDuration(sw.Elapsed)
+                    .Build();
+            }
+        }
+        catch (Exception ex)
+        {
+            var telemetry = TelemetryContext.GetCurrentTelemetry();
+            if (telemetry != null)
+            {
+                telemetry.Errors.Add($"BulkDeleteByKeys failed: {ex.Message}");
+            }
+            throw;
+        }
     }
 
     private async Task<int> InsertBatchAsync<T>(
@@ -228,6 +377,17 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
 
             sw.Stop();
             Debug.WriteLine($"[DAPPERMANY] BulkInsert {typeof(T).Name} (SqlServer): affected={insertedIds.Count}, elapsed={sw.ElapsedMilliseconds}ms");
+            
+            // Record generated IDs in telemetry
+            var telemetry = TelemetryContext.GetCurrentTelemetry();
+            if (telemetry != null)
+            {
+                foreach (var id in insertedIds.Where(id => id != null))
+                {
+                    telemetry.GeneratedIds.Add(id);
+                }
+            }
+            
             return insertedIds.Count;
         }
 

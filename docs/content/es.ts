@@ -280,6 +280,56 @@ const es: LocaleContent = {
       ],
     },
     {
+      id: "change-tracking",
+      group: "operations",
+      navLabel: "Rastreo de Cambios y Telemetría",
+      title: "Rastreo de Cambios y Telemetría",
+      blocks: [
+        {
+          type: "p",
+          html: "<strong>v3.0+</strong>: Todas las operaciones en masa retornan <code>BulkOperationResult&lt;T&gt;</code> con telemetría completa, incluyendo duración de la operación, IDs generados, conteo de entidades relacionadas y rastreo de errores.",
+        },
+        {
+          type: "h3",
+          html: "Estructura del resultado",
+        },
+        {
+          type: "table",
+          headers: ["Propiedad", "Tipo", "Descripción"],
+          rows: [
+            ["RowsInserted", "int", "Cantidad de filas insertadas en esta operación."],
+            ["RowsUpdated", "int", "Cantidad de filas actualizadas en esta operación."],
+            ["RowsDeleted", "int", "Cantidad de filas eliminadas en esta operación."],
+            ["TotalRowsAffected", "int", "Calculado: RowsInserted + RowsUpdated + RowsDeleted"],
+            ["Duration", "TimeSpan", "Tiempo total de la operación de inicio a fin."],
+            ["GeneratedIds", "IReadOnlyList<object>", "Valores de clave primaria auto-generados para entidades insertadas."],
+            ["RelatedEntities", "IReadOnlyDictionary<string, int>", "Conteo de entidades secundarias por nombre de tipo (para operaciones de grafo)."],
+            ["Errors", "IReadOnlyList<OperationError>", "Lista de errores ocurridos (si los hay)."],
+            ["IsSuccessful", "bool", "Si la operación se completó sin errores."],
+          ],
+        },
+        {
+          type: "h3",
+          html: "Monitoreo de rendimiento",
+        },
+        { type: "code", lang: "csharp", code: CODE.telemetryBasic },
+        {
+          type: "h3",
+          html: "Operaciones de grafo con rastreo de entidades relacionadas",
+        },
+        { type: "code", lang: "csharp", code: CODE.telemetryGraph },
+        {
+          type: "h3",
+          html: "Rastreo de errores",
+        },
+        { type: "code", lang: "csharp", code: CODE.errorTracking },
+        {
+          type: "p",
+          html: "Vea <a href=\"/MIGRATION_GUIDE_v3.0.md\">Guía de Migración v3.0</a> para actualizar desde v2.x.",
+        },
+      ],
+    },
+    {
       id: "providers",
       group: "internals",
       navLabel: "Providers",

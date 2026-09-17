@@ -280,6 +280,56 @@ const en: LocaleContent = {
       ],
     },
     {
+      id: "change-tracking",
+      group: "operations",
+      navLabel: "Change Tracking & Telemetry",
+      title: "Change Tracking & Telemetry",
+      blocks: [
+        {
+          type: "p",
+          html: "<strong>v3.0+</strong>: All bulk operations return <code>BulkOperationResult&lt;T&gt;</code> with comprehensive telemetry, including operation duration, generated IDs, related entity counts, and error tracking.",
+        },
+        {
+          type: "h3",
+          html: "Result structure",
+        },
+        {
+          type: "table",
+          headers: ["Property", "Type", "Description"],
+          rows: [
+            ["RowsInserted", "int", "Count of rows inserted in this operation."],
+            ["RowsUpdated", "int", "Count of rows updated in this operation."],
+            ["RowsDeleted", "int", "Count of rows deleted in this operation."],
+            ["TotalRowsAffected", "int", "Computed: RowsInserted + RowsUpdated + RowsDeleted"],
+            ["Duration", "TimeSpan", "Total operation time from start to completion."],
+            ["GeneratedIds", "IReadOnlyList<object>", "Auto-generated primary key values for inserted entities."],
+            ["RelatedEntities", "IReadOnlyDictionary<string, int>", "Child entity counts by type name (for graph operations)."],
+            ["Errors", "IReadOnlyList<OperationError>", "List of errors that occurred (if any)."],
+            ["IsSuccessful", "bool", "Whether operation completed without errors."],
+          ],
+        },
+        {
+          type: "h3",
+          html: "Performance monitoring",
+        },
+        { type: "code", lang: "csharp", code: CODE.telemetryBasic },
+        {
+          type: "h3",
+          html: "Graph operations with related entity tracking",
+        },
+        { type: "code", lang: "csharp", code: CODE.telemetryGraph },
+        {
+          type: "h3",
+          html: "Error tracking",
+        },
+        { type: "code", lang: "csharp", code: CODE.errorTracking },
+        {
+          type: "p",
+          html: "See <a href=\"/MIGRATION_GUIDE_v3.0.md\">Migration Guide v3.0</a> for upgrading from v2.x.",
+        },
+      ],
+    },
+    {
       id: "providers",
       group: "internals",
       navLabel: "Providers",

@@ -86,4 +86,27 @@ dotnet add package DapperMany.Postgres`,
 
   installMySql: `dotnet add package DapperMany
 dotnet add package DapperMany.MySql`,
+
+  telemetryBasic: `var result = await connection.InsertManyAsync(orders);
+Console.WriteLine($"Inserted {result.RowsInserted} orders in {result.Duration.TotalMilliseconds}ms");
+Console.WriteLine($"Generated IDs: {string.Join(", ", result.GeneratedIds)}");`,
+
+  telemetryGraph: `var result = await connection.InsertManyGraphAsync(orders);
+Console.WriteLine($"Total rows inserted: {result.TotalRowsAffected}");
+if (result.RelatedEntities.TryGetValue("OrderItem", out var itemCount))
+{
+    Console.WriteLine($"  Orders: {result.RowsInserted - itemCount}");
+    Console.WriteLine($"  Items: {itemCount}");
+}`,
+
+  errorTracking: `var result = await connection.UpdateManyAsync(orders);
+if (!result.IsSuccessful)
+{
+    foreach (var error in result.Errors)
+    {
+        Console.WriteLine($"Error at index {error.EntityIndex}: {error.Message}");
+        if (error.Exception != null)
+            Console.WriteLine($"  {error.Exception}");
+    }
+}`,
 };

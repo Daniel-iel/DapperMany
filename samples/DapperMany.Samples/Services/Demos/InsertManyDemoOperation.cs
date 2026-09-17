@@ -26,10 +26,15 @@ namespace DapperMany.Samples.Services.Demos
                 List<Pedido> orders = generator.GenerateBatch(_count);
 
                 var sw = Stopwatch.StartNew();
-                var rowsInserted = await connection.InsertManyAsync(orders);
+                var result = await connection.InsertManyAsync(orders);
                 sw.Stop();
 
-                output.WriteSuccess($"Inserted {rowsInserted} order(s) in {sw.Elapsed.TotalMilliseconds:N0} ms");
+                output.WriteSuccess($"Inserted {result.RowsInserted} order(s) in {result.Duration.TotalMilliseconds:N0} ms");
+                if (result.GeneratedIds.Count > 0)
+                    output.WriteInfo($"Generated IDs: {string.Join(", ", result.GeneratedIds.Take(3))}...");
+                if (!result.IsSuccessful)
+                    foreach (var error in result.Errors)
+                        output.WriteError($"Error at index {error.EntityIndex}: {error.Message}");
             }
             catch (Exception ex)
             {

@@ -1,4 +1,5 @@
 using Dapper;
+using DapperMany.Internal;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
@@ -11,7 +12,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
     private const int MaxParametersPerBatch = 65535; // conservative
     private const int RowsPerBatch = 50;
 
-    public async Task<int> BulkInsertAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkInsertAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -22,10 +23,11 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
 
         var entityList = entities.ToList();
-        if (entityList.Count == 0) return 0;
+        if (entityList.Count == 0) return new BulkOperationResult<T>();
 
         var dialect = new MySqlDialect();
         var totalInserted = 0;
+        var sw = Stopwatch.StartNew();
 
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
@@ -34,10 +36,14 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             totalInserted += inserted;
         }
 
-        return totalInserted;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsInserted(totalInserted)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
-    public async Task<int> BulkUpdateAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkUpdateAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -48,10 +54,11 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
 
         var entityList = entities.ToList();
-        if (entityList.Count == 0) return 0;
+        if (entityList.Count == 0) return new BulkOperationResult<T>();
 
         var dialect = new MySqlDialect();
         var totalUpdated = 0;
+        var sw = Stopwatch.StartNew();
 
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
@@ -60,10 +67,14 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             totalUpdated += updated;
         }
 
-        return totalUpdated;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsUpdated(totalUpdated)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
-    public async Task<int> BulkDeleteAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkDeleteAsync<T>(
         IDbConnection connection,
         IEnumerable<T> entities,
         EntityMetadata metadata,
@@ -74,10 +85,11 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
 
         var entityList = entities.ToList();
-        if (entityList.Count == 0) return 0;
+        if (entityList.Count == 0) return new BulkOperationResult<T>();
 
         var dialect = new MySqlDialect();
         var totalDeleted = 0;
+        var sw = Stopwatch.StartNew();
 
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
@@ -86,10 +98,14 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             totalDeleted += deleted;
         }
 
-        return totalDeleted;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsDeleted(totalDeleted)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
-    public async Task<int> BulkDeleteByKeysAsync<T>(
+    public async Task<BulkOperationResult<T>> BulkDeleteByKeysAsync<T>(
         IDbConnection connection,
         IEnumerable<object> keys,
         EntityMetadata metadata,
@@ -100,10 +116,11 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         if (metadata == null) throw new ArgumentNullException(nameof(metadata));
 
         var keyList = keys.ToList();
-        if (keyList.Count == 0) return 0;
+        if (keyList.Count == 0) return new BulkOperationResult<T>();
 
         var dialect = new MySqlDialect();
         var totalDeleted = 0;
+        var sw = Stopwatch.StartNew();
 
         for (int i = 0; i < keyList.Count; i += RowsPerBatch)
         {
@@ -112,7 +129,11 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
             totalDeleted += deleted;
         }
 
-        return totalDeleted;
+        sw.Stop();
+        return BulkOperationResult<T>.Builder()
+            .WithRowsDeleted(totalDeleted)
+            .WithDuration(sw.Elapsed)
+            .Build();
     }
 
     private async Task<int> InsertBatchAsync<T>(

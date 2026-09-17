@@ -1,3 +1,4 @@
+using DapperMany.Internal;
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
@@ -17,9 +18,9 @@ public static class DapperManyExtensions
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Entities to insert</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Number of rows inserted</returns>
+    /// <returns>BulkOperationResult with telemetry information</returns>
     /// <exception cref="InvalidOperationException">If the entity type has no [Table] attribute or provider is not registered</exception>
-    public static Task<int> InsertManyAsync<T>(
+    public static Task<BulkOperationResult<T>> InsertManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
@@ -33,7 +34,7 @@ public static class DapperManyExtensions
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return ExecuteWithTransactionAsync<int>(
+        return ExecuteWithTransactionAsync<BulkOperationResult<T>>(
             connection,
             tx,
             async (conn, localTx) => await strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken));
@@ -46,8 +47,8 @@ public static class DapperManyExtensions
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Entities to update</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Number of rows updated</returns>
-    public static Task<int> UpdateManyAsync<T>(
+    /// <returns>BulkOperationResult with telemetry information</returns>
+    public static Task<BulkOperationResult<T>> UpdateManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
@@ -63,7 +64,7 @@ public static class DapperManyExtensions
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return ExecuteWithTransactionAsync<int>(
+        return ExecuteWithTransactionAsync<BulkOperationResult<T>>(
             connection,
             tx,
             (conn, localTx) => strategy.BulkUpdateAsync(conn, entities, metadata, localTx, cancellationToken));
@@ -76,8 +77,8 @@ public static class DapperManyExtensions
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Entities to delete (only key values are used)</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Number of rows deleted</returns>
-    public static Task<int> DeleteManyAsync<T>(
+    /// <returns>BulkOperationResult with telemetry information</returns>
+    public static Task<BulkOperationResult<T>> DeleteManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
@@ -93,7 +94,7 @@ public static class DapperManyExtensions
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return ExecuteWithTransactionAsync<int>(
+        return ExecuteWithTransactionAsync<BulkOperationResult<T>>(
             connection,
             tx,
             (conn, localTx) => strategy.BulkDeleteAsync(conn, entities, metadata, localTx, cancellationToken));
@@ -106,8 +107,8 @@ public static class DapperManyExtensions
     /// <param name="connection">Database connection</param>
     /// <param name="keys">Key values of entities to delete</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Number of rows deleted</returns>
-    public static Task<int> DeleteManyAsync<T>(
+    /// <returns>BulkOperationResult with telemetry information</returns>
+    public static Task<BulkOperationResult<T>> DeleteManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<object> keys,
         IDbTransaction? tx = null,
@@ -123,7 +124,7 @@ public static class DapperManyExtensions
         var providerName = GetProviderName(connection);
         var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return ExecuteWithTransactionAsync<int>(
+        return ExecuteWithTransactionAsync<BulkOperationResult<T>>(
             connection,
             tx,
             (conn, localTx) => strategy.BulkDeleteByKeysAsync<T>(conn, keys, metadata, localTx, cancellationToken));
@@ -138,7 +139,7 @@ public static class DapperManyExtensions
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Parent entities with populated child collections</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Total number of rows inserted (parents + all children)</returns>
+    /// <returns>BulkOperationResult with telemetry for parents + all children</returns>
     /// <remarks>
     /// Usage example:
     /// var orders = new List&lt;Pedido&gt;
@@ -148,11 +149,12 @@ public static class DapperManyExtensions
     ///         new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 100 }
     ///     }}
     /// };
-    /// var totalInserted = await connection.InsertManyGraphAsync(orders);
+    /// var result = await connection.InsertManyGraphAsync(orders);
+    /// Console.WriteLine($"Inserted: {result.RowsInserted}, Duration: {result.Duration}ms");
     /// // Pedido.Id will be populated from database
     /// // ItemPedido.PedidoId will be auto-populated from Pedido.Id
     /// </remarks>
-    public static Task<int> InsertManyGraphAsync<T>(
+    public static Task<BulkOperationResult<T>> InsertManyGraphAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
         IDbTransaction? tx = null,
@@ -167,7 +169,7 @@ public static class DapperManyExtensions
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
 
-        return ExecuteWithTransactionAsync<int>(
+        return ExecuteWithTransactionAsync<BulkOperationResult<T>>(
             connection,
             tx,
             (conn, localTx) => Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken));
