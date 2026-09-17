@@ -225,7 +225,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             Itens = new() { new ItemPedido { Descricao = "Item 1", Quantidade = 2, ValorUnitario = 500m } }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         var inserted = (await connection.QueryAsync<Pedido>("SELECT * FROM \"Pedidos\" WHERE \"NumeroDocumento\" = 'CHILD-TEST'")).First();
 
@@ -253,7 +253,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             Itens = new() { new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 500m } }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         var insertedOrder = (await connection.QueryAsync<Pedido>("SELECT * FROM \"Pedidos\" WHERE \"NumeroDocumento\" = 'CASCADE-TEST'")).First();
         var orderId = insertedOrder.Id;

@@ -4,7 +4,7 @@ using System;
 
 /// <summary>
 /// Marks a property as a one-to-many relationship to a child entity collection.
-/// Used by InsertManyGraphAsync to automatically handle parent-child correlations.
+/// Used by InsertManyAsync to automatically handle parent-child correlations.
 /// </summary>
 [AttributeUsage(AttributeTargets.Property, AllowMultiple = false)]
 public class HasManyAttribute : Attribute

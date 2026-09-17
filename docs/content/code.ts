@@ -1,5 +1,5 @@
 export const CODE = {
-  heroUsage: `await connection.InsertManyGraphAsync(orders);
+  heroUsage: `await connection.InsertManyAsync(orders);
 await connection.UpdateManyAsync(partialOrders);
 await connection.DeleteManyAsync(orderIds);`,
 
@@ -26,7 +26,7 @@ public class OrderItem
     public string Product { get; set; }
 }`,
 
-  quickstartUsage: `await connection.InsertManyGraphAsync(orders);    // parent + children, FK resolved automatically
+  quickstartUsage: `await connection.InsertManyAsync(orders);    // parent + children, FK resolved automatically
 await connection.UpdateManyAsync(partialOrders);  // object with just [Key] + fields to update
 await connection.DeleteManyAsync(orderIds);`,
 
@@ -50,22 +50,21 @@ public class Order
   publicApi: `public static class DbConnectionExtensions
 {
     Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task InsertManyGraphAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task UpdateManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<object> keys, IDbTransaction? tx = null);
 }`,
 
   edgeNull: `var order = new Order { DocumentNumber = "ORD-NULL", Items = null };
-await connection.InsertManyGraphAsync(new[] { order }); // Inserts only the parent`,
+await connection.InsertManyAsync(new[] { order }); // Inserts only the parent`,
 
   edgeHasOne: `var order = new Order { DocumentNumber = "ORD-DET", Detail = new OrderDetail { /* ... */ } };
-await connection.InsertManyGraphAsync(new[] { order }); // Inserts parent + detail (1:1)`,
+await connection.InsertManyAsync(new[] { order }); // Inserts parent + detail (1:1)`,
 
   deleteManyCall: `await connection.DeleteManyAsync(orderIds);`,
 
   txUsage: `using var tx = connection.BeginTransaction();
-await connection.InsertManyGraphAsync(orders, tx);
+await connection.InsertManyAsync(orders, tx);
 tx.Commit();`,
 
   moduleInit: `internal static class SqlServerModuleInitializer

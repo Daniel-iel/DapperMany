@@ -142,7 +142,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             }
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
         Assert.Equal(1, insertedCount);
 
         var parentCount = Convert.ToInt32(await connection.ExecuteScalarAsync("SELECT COUNT(*) FROM Pedidos WHERE NumeroDocumento = 'PED-001'"));
@@ -194,7 +194,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             }
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(pedidos);
+        var insertedCount = await connection.InsertManyAsync(pedidos);
 
         Assert.Equal(3, insertedCount);
 
@@ -229,7 +229,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             }
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
         Assert.Equal(1, insertedCount);
 
         var insertedFK = Convert.ToInt32(await connection.ExecuteScalarAsync("SELECT i.PedidoId FROM ItensPedido i INNER JOIN Pedidos p ON i.PedidoId = p.Id WHERE p.NumeroDocumento = 'PED-FK-TEST'"));
@@ -254,7 +254,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             Itens = null
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
         Assert.Equal(1, insertedCount);
 
         var parentCount = Convert.ToInt32(await connection.ExecuteScalarAsync("SELECT COUNT(*) FROM Pedidos WHERE NumeroDocumento = 'PED-NULL'"));

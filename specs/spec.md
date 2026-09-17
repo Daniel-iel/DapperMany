@@ -28,7 +28,6 @@ Permitir que o consumidor declare classes com attributes representando tabelas d
 public static class DbConnectionExtensions
 {
     Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task InsertManyGraphAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task UpdateManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<object> keys, IDbTransaction? tx = null);
@@ -69,7 +68,7 @@ public class ItemPedido
 Uso final:
 
 ```csharp
-await connection.InsertManyGraphAsync(pedidos);    // pai + filhos, FK resolvida automaticamente
+await connection.InsertManyAsync(pedidos);         // auto-detects relationships; flat or graph
 await connection.UpdateManyAsync(pedidosParciais); // objeto só com [Key] + campos a atualizar
 await connection.DeleteManyAsync(pedidoIds);
 ```
@@ -78,10 +77,10 @@ await connection.DeleteManyAsync(pedidoIds);
 
 ## 4. Decisões de design por operação
 
-### 4.1 InsertMany / InsertManyGraph
+### 4.1 InsertMany
 
-- **PK Identity é o cenário assumido como padrão** (não exige Guid no modelo do consumidor).
-- Correlação pai-filho é resolvida **inteiramente pela lib**, via reflection sobre a referência de objeto em memória — o consumidor nunca atribui FK manualmente.
+**Behavior**: `InsertManyAsync` automatically detects whether an entity type has relationships ([HasMany] or [HasOne] attributes). If relationships are present, it processes them hierarchically (graph insert); otherwise, it performs a flat insert.
+- **Relationship Detection**: EntityMetadata is analyzed at call-time. If `metadata.Relationships.Count > 0`, graph insertion is triggered; otherwise flat insertion is used.
 Fluxo interno (`InsertManyGraphExecutor`):
 
 1. Insere os registros pai (estratégia depende do provider — ver seção 6).
@@ -104,18 +103,18 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
 
 #### 4.1.1 Edge Cases
 
-- **Children `null`**: Se a propriedade de navegação do pai for `null`, `InsertManyGraphAsync` deve inserir apenas o pai e pular os filhos.
+- **Children `null`**: Se a propriedade de navegação do pai for `null`, `InsertManyAsync` deve inserir apenas o pai e pular os filhos.
 
     ```csharp
     var pedido = new Pedido { NumeroDocumento = "PED-NULL", Itens = null };
-    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere apenas o pai
+    await connection.InsertManyAsync(new[] { pedido }); // Insere apenas o pai
     ```
 
 - **Children vazio**: Se a coleção estiver vazia, também insere apenas o pai.
 
     ```csharp
     var pedido = new Pedido { NumeroDocumento = "PED-EMPTY", Itens = new List<ItemPedido>() };
-    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere apenas o pai
+    await connection.InsertManyAsync(new[] { pedido }); // Insere apenas o pai
     ```
 
 - **`[HasOne]` (1:1)**: Propriedades marcadas com `[HasOne]` são tratadas como um único filho. A implementação deve aceitar tanto coleções (`[HasMany]`) quanto referências simples (`[HasOne]`) e propagar a FK do pai para o filho.
@@ -128,7 +127,7 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
     }
 
     var pedido = new Pedido { NumeroDocumento = "PED-DET", Detalhe = new PedidoDetalhe { /* ... */ } };
-    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere pai + detalhe (1:1)
+    await connection.InsertManyAsync(new[] { pedido }); // Insere pai + detalhe (1:1)
     ```
 
 - **Transações (obrigatório para operações em massa)**: Todas as operações em lote (`InsertMany`, `InsertManyGraph`, `UpdateMany`, `DeleteMany`) devem obrigatoriamente ser executadas dentro de uma transação associada ao `IDbConnection` usado pela operação.

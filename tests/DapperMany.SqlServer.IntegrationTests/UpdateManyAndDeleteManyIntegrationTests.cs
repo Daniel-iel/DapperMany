@@ -311,7 +311,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         // Get inserted order ID
         var inserted = await connection.QueryAsync<Pedido>(
@@ -360,7 +360,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         // Get IDs
         var insertedOrder = await connection.QueryAsync<Pedido>(

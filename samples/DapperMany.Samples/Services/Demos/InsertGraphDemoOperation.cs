@@ -53,7 +53,7 @@ namespace DapperMany.Samples.Services.Demos
                 }
 
                 var sw = Stopwatch.StartNew();
-                int insertedCount = await connection.InsertManyGraphAsync(orders);
+                int insertedCount = await connection.InsertManyAsync(orders);
                 sw.Stop();
 
                 output.WriteSuccess($"Successfully inserted {insertedCount} order(s) with items in {sw.Elapsed.TotalMilliseconds:N0} ms");

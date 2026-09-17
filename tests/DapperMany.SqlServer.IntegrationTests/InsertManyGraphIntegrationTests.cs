@@ -181,7 +181,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         };
 
         // Act
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
 
         // Assert
         Assert.Equal(1, insertedCount); // One parent inserted
@@ -243,7 +243,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         };
 
         // Act
-        var insertedCount = await connection.InsertManyGraphAsync(pedidos);
+        var insertedCount = await connection.InsertManyAsync(pedidos);
 
         // Assert
         Assert.Equal(3, insertedCount);
@@ -291,7 +291,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         };
 
         // Act
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
 
         // Assert
         Assert.Equal(1, insertedCount);
@@ -330,7 +330,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         };
 
         // Act
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
 
         // Assert
         Assert.Equal(1, insertedCount);

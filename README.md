@@ -18,7 +18,6 @@ DapperMany provides a small set of extension methods over `IDbConnection` to per
 Supported operations (public API):
 
 - `InsertManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
-- `InsertManyGraphAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
 - `UpdateManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
 - `DeleteManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
 
@@ -62,23 +61,19 @@ public class Pedido
 }
 ```
 
-### InsertMany (simple list)
+### InsertMany (flat list or with relationships)
 ```csharp
+// Example 1: Flat collection (no relationships)
 var orders = new List<Pedido>
 {
     new Pedido { NumeroDocumento = "PED-001", DataPedido = DateTime.UtcNow, ValorTotal = 1500.00m },
     new Pedido { NumeroDocumento = "PED-002", ValorTotal = 2500.00m }
 };
-
 var rowsInserted = await connection.InsertManyAsync(orders);
 Console.WriteLine($"Inserted {rowsInserted} order(s)");
-```
 
-Snippet source: [samples/DapperMany.Samples/Program.cs](samples/DapperMany.Samples/Program.cs#L158-L172)
-
-### InsertManyGraph (parents + children)
-```csharp
-var orders = new List<Pedido>
+// Example 2: With relationships (auto-detected)
+var ordersWithItems = new List<Pedido>
 {
     new Pedido
     {
@@ -91,12 +86,9 @@ var orders = new List<Pedido>
         }
     }
 };
-
-int insertedCount = await connection.InsertManyGraphAsync(orders);
-// Parent IDs and children FK values are populated by the library
+int parentCount = await connection.InsertManyAsync(ordersWithItems);
+// Parent IDs and children FK values are auto-populated
 ```
-
-Snippet source: [samples/DapperMany.Samples/Program.cs](samples/DapperMany.Samples/Program.cs#L246-L261)
 
 ### UpdateMany
 ```csharp

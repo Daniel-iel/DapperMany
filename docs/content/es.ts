@@ -171,12 +171,12 @@ const es: LocaleContent = {
     {
       id: "insert-many",
       group: "operations",
-      navLabel: "InsertMany / InsertManyGraph",
-      title: "InsertMany / InsertManyGraph",
+      navLabel: "InsertMany",
+      title: "InsertMany",
       blocks: [
         {
           type: "p",
-          html: "<code>InsertManyAsync</code> inserta una colección plana. <code>InsertManyGraphAsync</code> inserta el padre, rellena el Id generado de vuelta en cada entidad y propaga la FK a los hijos declarados con <code>[HasMany]</code> o <code>[HasOne]</code>, recursivamente para nietos.",
+          html: "<code>InsertManyAsync</code> detecta automáticamente las relaciones. Si el tipo de entidad tiene atributos <code>[HasMany]</code> o <code>[HasOne]</code>, inserta padres, rellena el Id generado de vuelta en cada entidad y propaga la FK a los hijos recursivamente. Si no, realiza una inserción de colección plana.",
         },
         {
           type: "ol",
@@ -394,7 +394,7 @@ const es: LocaleContent = {
             "Entorno Docker con las tres bases de datos y esquema inicial.",
             "<code>DapperMany</code> (core) + <code>DapperMany.SqlServer</code>: <code>InsertManyAsync</code> simple, validado con Testcontainers.",
             "Proyecto samples: escenario de <code>InsertMany</code> contra SQL Server vía Docker local.",
-            "<code>InsertManyGraphAsync</code> en SQL Server — primero 1 nivel de relación, luego recursión.",
+            "<code>InsertManyAsync</code> en SQL Server — primero 1 nivel de relación, luego recursión.",
             "<code>UpdateManyAsync</code> / <code>DeleteManyAsync</code> en SQL Server, con escenarios en samples.",
             "Extraer <code>ISqlDialect</code> / <code>IBulkCopyStrategy</code> / <code>IIdentityRetrievalStrategy</code> como interfaces formales.",
             "<code>DapperMany.Postgres</code> + escenarios en samples.",

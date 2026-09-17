@@ -12,13 +12,37 @@ public static class DapperManyExtensions
 {
     /// <summary>
     /// Inserts multiple entities into the database in a single batch operation.
+    /// Automatically detects relationships ([HasMany], [HasOne] attributes) and handles graph insertion if present.
     /// </summary>
     /// <typeparam name="T">Entity type to insert</typeparam>
     /// <param name="connection">Database connection</param>
-    /// <param name="entities">Entities to insert</param>
+    /// <param name="entities">Entities to insert (may include populated child collections for graph inserts)</param>
+    /// <param name="tx">Optional external transaction</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Number of rows inserted</returns>
+    /// <returns>Number of parent entities inserted. Child entities are also inserted but not counted in the return value.</returns>
     /// <exception cref="InvalidOperationException">If the entity type has no [Table] attribute or provider is not registered</exception>
+    /// <remarks>
+    /// This method automatically detects whether the entity type has relationships and routes to the appropriate insert strategy:
+    /// 
+    /// Example 1: Flat collection (no relationships)
+    /// <code>
+    /// var products = new List&lt;Product&gt; { new Product { Name = "Item 1" }, ... };
+    /// var count = await connection.InsertManyAsync(products);
+    /// // count = number of products inserted
+    /// </code>
+    /// 
+    /// Example 2: Graph with children (auto-detected)
+    /// <code>
+    /// var orders = new List&lt;Pedido&gt; {
+    ///     new Pedido { NumeroDocumento = "PED-001", Itens = new List&lt;ItemPedido&gt; {
+    ///         new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 100 }
+    ///     }}
+    /// };
+    /// var count = await connection.InsertManyAsync(orders);
+    /// // count = number of Pedidos inserted (3 in this example)
+    /// // ItemPedido.PedidoId will be auto-populated from Pedido.Id
+    /// </code>
+    /// </remarks>
     public static Task<int> InsertManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
@@ -29,14 +53,26 @@ public static class DapperManyExtensions
             throw new ArgumentNullException(nameof(connection));
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
+        
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
-        var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return ExecuteWithTransactionAsync<int>(
-            connection,
-            tx,
-            async (conn, localTx) => await strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken));
+        // Route to graph insertion if entity has relationships; otherwise use flat insertion
+        if (HasGraphRelationships(metadata))
+        {
+            return ExecuteWithTransactionAsync<int>(
+                connection,
+                tx,
+                (conn, localTx) => Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken));
+        }
+        else
+        {
+            var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
+            return ExecuteWithTransactionAsync<int>(
+                connection,
+                tx,
+                async (conn, localTx) => await strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken));
+        }
     }
 
     /// <summary>
@@ -129,49 +165,7 @@ public static class DapperManyExtensions
             (conn, localTx) => strategy.BulkDeleteByKeysAsync<T>(conn, keys, metadata, localTx, cancellationToken));
     }
 
-    /// <summary>
-    /// Inserts multiple parent entities with their related child entities (graph insert).
-    /// Automatically populates foreign key values in children after parents are inserted.
-    /// Children are identified via [HasMany] attributes on parent entity properties.
-    /// </summary>
-    /// <typeparam name="T">Parent entity type</typeparam>
-    /// <param name="connection">Database connection</param>
-    /// <param name="entities">Parent entities with populated child collections</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Total number of rows inserted (parents + all children)</returns>
-    /// <remarks>
-    /// Usage example:
-    /// var orders = new List&lt;Pedido&gt;
-    /// {
-    ///     new Pedido { NumeroDocumento = "PED-001", Itens = new List&lt;ItemPedido&gt;
-    ///     {
-    ///         new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 100 }
-    ///     }}
-    /// };
-    /// var totalInserted = await connection.InsertManyGraphAsync(orders);
-    /// // Pedido.Id will be populated from database
-    /// // ItemPedido.PedidoId will be auto-populated from Pedido.Id
-    /// </remarks>
-    public static Task<int> InsertManyGraphAsync<T>(
-        this IDbConnection connection,
-        IEnumerable<T> entities,
-        IDbTransaction? tx = null,
-        CancellationToken cancellationToken = default) where T : class
-    {
-        if (connection == null)
-            throw new ArgumentNullException(nameof(connection));
 
-        if (entities == null)
-            throw new ArgumentNullException(nameof(entities));
-
-        var metadata = EntityMapper.GetMetadata<T>();
-        var providerName = GetProviderName(connection);
-
-        return ExecuteWithTransactionAsync<int>(
-            connection,
-            tx,
-            (conn, localTx) => Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken));
-    }
 
     /// <summary>
     /// Executes an operation within a transaction. If externalTransaction is null, opens connection if needed and creates a transaction using optional isolationLevel.
@@ -217,6 +211,14 @@ public static class DapperManyExtensions
             if (created)
                 localTx.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Determines whether an entity type has graph relationships ([HasMany] or [HasOne] attributes).
+    /// </summary>
+    private static bool HasGraphRelationships(Internal.Mapping.EntityMetadata metadata)
+    {
+        return metadata.Relationships.Count > 0;
     }
 
     /// <summary>
