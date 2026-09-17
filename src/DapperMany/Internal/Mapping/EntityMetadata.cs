@@ -20,12 +20,23 @@ public sealed record EntityMetadata
     public required string TableName { get; init; }
 
     /// <summary>
-    /// The primary key property. Must be present exactly once.
+    /// The primary key properties. Can be one (single) or multiple (composite).
+    /// Must contain at least one property.
     /// </summary>
-    public required PropertyInfo KeyProperty { get; init; }
+    public required IReadOnlyList<PropertyInfo> KeyProperties { get; init; }
 
     /// <summary>
-    /// All mapped properties (including key property) that correspond to table columns.
+    /// Computed property indicating whether this entity has a composite key.
+    /// </summary>
+    public bool IsCompositeKey => KeyProperties.Count > 1;
+
+    /// <summary>
+    /// Backward compatibility: returns the first (and only) key property for single-key entities.
+    /// </summary>
+    public PropertyInfo KeyProperty => KeyProperties[0];
+
+    /// <summary>
+    /// All mapped properties (including key properties) that correspond to table columns.
     /// </summary>
     public required IReadOnlyList<PropertyInfo> MappedProperties { get; init; }
 
@@ -50,11 +61,20 @@ public sealed record EntityMetadata
         if (string.IsNullOrWhiteSpace(TableName))
             throw new InvalidOperationException("TableName is required.");
 
-        if (KeyProperty == null)
-            throw new InvalidOperationException($"No [Key] property found on {EntityType.Name}.");
+        if (KeyProperties == null || KeyProperties.Count == 0)
+            throw new InvalidOperationException($"No [Key] properties found on {EntityType.Name}.");
 
-        if (!MappedProperties.Contains(KeyProperty))
-            throw new InvalidOperationException("Key property must be included in MappedProperties.");
+        foreach (var keyProp in KeyProperties)
+        {
+            if (!MappedProperties.Contains(keyProp))
+                throw new InvalidOperationException($"Key property '{keyProp.Name}' must be included in MappedProperties.");
+            
+            // Composite key cannot have auto-generated identity
+            if (IsCompositeKey && IdentityProperties.Contains(keyProp))
+                throw new InvalidOperationException(
+                    $"Entity '{EntityType.Name}' has a composite key with property '{keyProp.Name}' marked as [DatabaseGenerated(Identity)]. " +
+                    "Composite keys cannot have auto-generated properties.");
+        }
     }
 }
 
