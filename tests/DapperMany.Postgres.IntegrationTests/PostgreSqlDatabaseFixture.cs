@@ -142,4 +142,32 @@ public class PostgreSqlDatabaseFixture : IAsyncLifetime
         alterModified.CommandText = @"ALTER TABLE ""ItensPedido"" ADD COLUMN IF NOT EXISTS ""Modified"" TIMESTAMP NOT NULL DEFAULT now();";
         await alterModified.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// Creates composite key test table (TenantPedidos) for multi-tenant scenarios.
+    /// Called by composite key test classes.
+    /// Idempotent - safe to call multiple times.
+    /// </summary>
+    public async Task InitializeCompositeKeySchema()
+    {
+        using var connection = new NpgsqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                DROP TABLE IF EXISTS ""TenantPedidos"";
+                CREATE TABLE ""TenantPedidos"" (
+                    ""TenantId"" VARCHAR(50) NOT NULL,
+                    ""DocumentNumber"" VARCHAR(50) NOT NULL,
+                    ""OrderDate"" TIMESTAMP NOT NULL,
+                    ""TotalAmount"" DECIMAL(18, 2) NOT NULL,
+                    ""Status"" VARCHAR(50) NOT NULL,
+                    ""CreatedAt"" TIMESTAMP NOT NULL,
+                    ""ModifiedAt"" TIMESTAMP NOT NULL,
+                    PRIMARY KEY (""TenantId"", ""DocumentNumber"")
+                )";
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
 }

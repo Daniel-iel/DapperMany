@@ -136,7 +136,7 @@ public class CompositeKeyTests
         );
 
         // Verify error message contains relevant information
-        Assert.Contains("Composite Key", exception.Message);
+        Assert.Contains("composite key", exception.Message);
         Assert.Contains("DatabaseGenerated", exception.Message);
     }
 

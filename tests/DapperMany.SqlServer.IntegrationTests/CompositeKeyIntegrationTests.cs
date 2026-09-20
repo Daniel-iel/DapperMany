@@ -1,117 +1,30 @@
-using System.Data;
-using System.Diagnostics;
 using Dapper;
 using DapperMany.Samples.Models;
 using Microsoft.Data.SqlClient;
-using Testcontainers.MsSql;
+using Xunit;
 
 namespace DapperMany.SqlServer.IntegrationTests;
 
 /// <summary>
 /// Integration tests for composite key operations (InsertMany, UpdateMany, DeleteMany)
-/// using SQL Server via Testcontainers.
+/// using SQL Server via centralized SqlServerDatabaseFixture.
+/// Tests composite key patterns for multi-tenant scenarios with primary keys on multiple columns.
 /// </summary>
-public class CompositeKeyIntegrationTests : IAsyncLifetime
+public class CompositeKeyIntegrationTests : IClassFixture<SqlServerDatabaseFixture>
 {
-    private MsSqlContainer? _container;
-    private string? _connectionString;
+    private readonly SqlServerDatabaseFixture _fixture;
 
-    public async Task InitializeAsync()
+    public CompositeKeyIntegrationTests(SqlServerDatabaseFixture fixture)
     {
-        var providedConnection = Environment.GetEnvironmentVariable("TEST_SQLSERVER_CONNECTIONSTRING");
-        if (!string.IsNullOrWhiteSpace(providedConnection))
-        {
-            _connectionString = providedConnection;
-        }
-        else
-        {
-            var saPassword = Environment.GetEnvironmentVariable("TEST_SQLSERVER_SA_PASSWORD") ?? "SqlServer123!";
-            _container = new MsSqlBuilder()
-                .WithImage("mcr.microsoft.com/mssql/server:2019-latest")
-                .WithPassword(saPassword)
-                .Build();
-
-            await _container.StartAsync();
-            _connectionString = _container.GetConnectionString();
-        }
-
-        DapperMany.SqlServer.SqlServerProvider.Register();
-
-        var ready = false;
-        var sw = Stopwatch.StartNew();
-        var timeout = TimeSpan.FromMinutes(5);
-        while (sw.Elapsed < timeout)
-        {
-            try
-            {
-                using var testConn = new SqlConnection(_connectionString);
-                await testConn.OpenAsync();
-                await testConn.CloseAsync();
-                ready = true;
-                break;
-            }
-            catch
-            {
-                await Task.Delay(2000);
-            }
-        }
-
-        if (!ready)
-            throw new InvalidOperationException($"SQL Server container did not become ready within {timeout.TotalMinutes} minutes.");
-
-        await InitializeSchema();
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_container != null)
-            await _container.StopAsync();
-    }
-
-    private async Task InitializeSchema()
-    {
-        using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using (var cmd = connection.CreateCommand())
-        {
-            cmd.CommandText = "SELECT 1 FROM sys.databases WHERE name = 'DapperManyCompositeKeyTest'";
-            var exists = await cmd.ExecuteScalarAsync();
-            if (exists == null)
-            {
-                cmd.CommandText = "CREATE DATABASE DapperManyCompositeKeyTest";
-                await cmd.ExecuteNonQueryAsync();
-            }
-        }
-
-        connection.ChangeDatabase("DapperManyCompositeKeyTest");
-
-        using (var cmd = connection.CreateCommand())
-        {
-            cmd.CommandText = @"
-                IF OBJECT_ID('TenantPedidos', 'U') IS NULL
-                CREATE TABLE TenantPedidos (
-                    TenantId NVARCHAR(50) NOT NULL,
-                    DocumentNumber NVARCHAR(50) NOT NULL,
-                    OrderDate DATETIME NOT NULL,
-                    TotalAmount DECIMAL(18, 2) NOT NULL,
-                    Status NVARCHAR(50) NOT NULL,
-                    CreatedAt DATETIME NOT NULL,
-                    ModifiedAt DATETIME NOT NULL,
-                    PRIMARY KEY (TenantId, DocumentNumber)
-                )";
-            await cmd.ExecuteNonQueryAsync();
-
-            // Clear existing data for idempotent tests
-            cmd.CommandText = "TRUNCATE TABLE TenantPedidos";
-            await cmd.ExecuteNonQueryAsync();
-        }
+        _fixture = fixture;
+        // Initialize composite key schema when fixture is created
+        _fixture.InitializeCompositeKeySchema().Wait();
     }
 
     [Fact]
     public async Task InsertManyWithCompositeKey_Should_Insert_Multiple_Records()
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var orders = new[]
@@ -140,7 +53,7 @@ public class CompositeKeyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UpdateManyWithCompositeKey_Should_Update_By_Composite_Key()
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Insert test data
@@ -179,7 +92,7 @@ public class CompositeKeyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteManyWithCompositeKey_Should_Delete_By_Composite_Key()
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Insert test data
@@ -212,7 +125,7 @@ public class CompositeKeyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task CompositeKey_Should_Support_Large_Batch_Operations()
     {
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Create 100+ records with composite keys

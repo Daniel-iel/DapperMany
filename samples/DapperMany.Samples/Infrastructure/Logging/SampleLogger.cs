@@ -35,25 +35,25 @@ namespace DapperMany.Samples.Infrastructure.Logging
         /// </summary>
         /// <param name="text">The header text to write.</param>
         public void Header(string text) => _formatter.WriteHeader(text);
-        
+
         /// <summary>
         /// Writes an informational message to the output formatter.
         /// </summary>
         /// <param name="text">The informational text to write.</param>
         public void Info(string text) => _formatter.WriteInfo(text);
-        
+
         /// <summary>
         /// Writes a success message to the output formatter.
         /// </summary>
         /// <param name="text">The success text to write.</param>
         public void Success(string text) => _formatter.WriteSuccess(text);
-        
+
         /// <summary>
         /// Writes an error message to the output formatter.
         /// </summary>
         /// <param name="text">The error text to write.</param>
         public void Error(string text) => _formatter.WriteError(text);
-        
+
         /// <summary>
         /// Writes a line of text to the output formatter.
         /// </summary>
