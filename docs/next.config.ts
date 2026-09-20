@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   ...(process.env.NODE_ENV === 'production' && {
     output: 'export',
     basePath: '/DapperMany',
+    assetPrefix: '/DapperMany/',
     images: {
       unoptimized: true,
     },
