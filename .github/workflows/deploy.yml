@@ -101,7 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, test]
     env:
-      NUGET_SOURCE: https://www.nuget.org/api/v2/package
+      NUGET_SOURCE: https://api.nuget.org/v3/index.json
       PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
 
     steps:
