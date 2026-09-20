@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build solution
+        run: dotnet build --no-restore --configuration Release
+
+  test-unit:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Run unit tests
+        run: dotnet test tests/DapperMany.UnitTests/DapperMany.UnitTests.csproj --no-restore --configuration Release --logger "trx;LogFileName=test-results.trx" --verbosity normal
+
+      - name: Upload unit test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: unit-test-results
+          path: '**/test-results.trx'
+
+  test-integration:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Install docker-compose
+        run: |
+          sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+          sudo chmod +x /usr/local/bin/docker-compose
+          docker-compose --version
+
+      - name: Start database containers (docker-compose)
+        run: docker-compose up -d
+        working-directory: ./docker
+
+      - name: Wait for containers to be healthy
+        run: |
+          echo "Waiting for database containers to be ready..."
+          for i in {1..60}; do
+            if docker-compose ps | grep -q "(healthy)"; then
+              echo "Database containers are healthy!"
+              break
+            fi
+            echo "Waiting... attempt $i/60"
+            sleep 2
+          done
+        working-directory: ./docker
+        shell: bash
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Run MySQL integration tests
+        run: dotnet test tests/DapperMany.MySql.IntegrationTests/DapperMany.MySql.IntegrationTests.csproj --no-restore --configuration Release --logger "trx;LogFileName=mysql-test-results.trx" --verbosity normal
+
+      - name: Run PostgreSQL integration tests
+        run: dotnet test tests/DapperMany.Postgres.IntegrationTests/DapperMany.Postgres.IntegrationTests.csproj --no-restore --configuration Release --logger "trx;LogFileName=postgres-test-results.trx" --verbosity normal
+
+      - name: Run SQL Server integration tests
+        run: dotnet test tests/DapperMany.SqlServer.IntegrationTests/DapperMany.SqlServer.IntegrationTests.csproj --no-restore --configuration Release --logger "trx;LogFileName=sqlserver-test-results.trx" --verbosity normal
+
+      - name: Upload integration test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: integration-test-results
+          path: '**/test-results.trx'
+
+      - name: Stop database containers
+        if: always()
+        run: docker-compose down
+        working-directory: ./docker

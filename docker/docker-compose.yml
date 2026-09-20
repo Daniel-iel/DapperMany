@@ -1,0 +1,98 @@
+version: '3.8'
+
+services:
+  # SQL Server 2019
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    container_name: dappermany-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "SqlServer123!"
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - ./sqlserver/init:/docker-entrypoint-initdb.d
+      - sqlserver-data:/var/opt/mssql
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        /opt/mssql/bin/sqlservr &
+        PID=$$!
+        echo "Attempting to connect and initialize database..."
+        for i in {1..30}; do
+          echo "Connection attempt $$i/30..."
+          if /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'SqlServer123!' -Q 'SELECT 1' > /dev/null 2>&1; then
+            echo "SQL Server is ready! Running initialization script..."
+            /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'SqlServer123!' -i /docker-entrypoint-initdb.d/01-schema.sql
+            if [ $$? -eq 0 ]; then
+              echo "Database initialization successful!"
+            else
+              echo "Database initialization failed!"
+            fi
+            break
+          fi
+          echo "SQL Server not ready, waiting 2 seconds..."
+          sleep 2
+        done
+        echo "Keeping container alive..."
+        wait $$PID
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-C", "-S", "localhost", "-U", "sa", "-P", "SqlServer123!", "-Q", "SELECT 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    networks:
+      - dappermany-network
+
+  # PostgreSQL 14
+  postgres:
+    image: postgres:14-alpine
+    container_name: dappermany-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Postgres123!
+      POSTGRES_DB: dappermany
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./postgres/init:/docker-entrypoint-initdb.d
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dappermany-network
+
+  # MySQL 8.0
+  mysql:
+    image: mysql:8.0
+    container_name: dappermany-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: MySql123!
+      MYSQL_DATABASE: dappermany
+    ports:
+      - "3306:3306"
+    volumes:
+      - ./mysql/init:/docker-entrypoint-initdb.d
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pMySql123!"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dappermany-network
+
+volumes:
+  sqlserver-data:
+  postgres-data:
+  mysql-data:
+
+networks:
+  dappermany-network:
+    driver: bridge

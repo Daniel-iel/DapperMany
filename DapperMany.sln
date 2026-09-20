@@ -1,0 +1,84 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8A5B7E1A-4D2F-4B8C-9E1F-7A2B3C4D5E6F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1F2E3D4C-5B6A-4D8C-9A0B-1E2D3C4D5E6F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{5E4D3C2B-1A0F-4E6D-8B2C-3D4E5F6A7B8C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany", "src\DapperMany\DapperMany.csproj", "{2A1B3C4D-5E6F-4A8B-9C0D-1E2F3A4B5C6D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.SqlServer", "src\DapperMany.SqlServer\DapperMany.SqlServer.csproj", "{3B2C4D5E-6F7A-4B9C-0D1E-2F3A4B5C6D7E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.Postgres", "src\DapperMany.Postgres\DapperMany.Postgres.csproj", "{4C3D5E6F-7A8B-5C0D-1E2F-3A4B5C6D7E8F}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.MySql", "src\DapperMany.MySql\DapperMany.MySql.csproj", "{5D4E6F7A-8B9C-6D1E-2F3A-4B5C6D7E8F9A}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.UnitTests", "tests\DapperMany.UnitTests\DapperMany.UnitTests.csproj", "{6E5F7A8B-9C0D-7E2F-3A4B-5C6D7E8F9A0B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.SqlServer.IntegrationTests", "tests\DapperMany.SqlServer.IntegrationTests\DapperMany.SqlServer.IntegrationTests.csproj", "{7F6A8B9C-0D1E-8F3A-4B5C-6D7E8F9A0B1C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.Postgres.IntegrationTests", "tests\DapperMany.Postgres.IntegrationTests\DapperMany.Postgres.IntegrationTests.csproj", "{8A7B9C0D-1E2F-9A3B-5C6D-7E8F9A0B1C2D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.MySql.IntegrationTests", "tests\DapperMany.MySql.IntegrationTests\DapperMany.MySql.IntegrationTests.csproj", "{9B8C0D1E-2F3A-0B4C-6D7E-8F9A0B1C2D3E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DapperMany.Samples", "samples\DapperMany.Samples\DapperMany.Samples.csproj", "{0C9D1E2F-3A4B-1C5D-7E8F-9A0B1C2D3E4F}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{2A1B3C4D-5E6F-4A8B-9C0D-1E2F3A4B5C6D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2A1B3C4D-5E6F-4A8B-9C0D-1E2F3A4B5C6D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2A1B3C4D-5E6F-4A8B-9C0D-1E2F3A4B5C6D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2A1B3C4D-5E6F-4A8B-9C0D-1E2F3A4B5C6D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3B2C4D5E-6F7A-4B9C-0D1E-2F3A4B5C6D7E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3B2C4D5E-6F7A-4B9C-0D1E-2F3A4B5C6D7E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3B2C4D5E-6F7A-4B9C-0D1E-2F3A4B5C6D7E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3B2C4D5E-6F7A-4B9C-0D1E-2F3A4B5C6D7E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{4C3D5E6F-7A8B-5C0D-1E2F-3A4B5C6D7E8F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4C3D5E6F-7A8B-5C0D-1E2F-3A4B5C6D7E8F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4C3D5E6F-7A8B-5C0D-1E2F-3A4B5C6D7E8F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4C3D5E6F-7A8B-5C0D-1E2F-3A4B5C6D7E8F}.Release|Any CPU.Build.0 = Release|Any CPU
+		{5D4E6F7A-8B9C-6D1E-2F3A-4B5C6D7E8F9A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{5D4E6F7A-8B9C-6D1E-2F3A-4B5C6D7E8F9A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{5D4E6F7A-8B9C-6D1E-2F3A-4B5C6D7E8F9A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{5D4E6F7A-8B9C-6D1E-2F3A-4B5C6D7E8F9A}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6E5F7A8B-9C0D-7E2F-3A4B-5C6D7E8F9A0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6E5F7A8B-9C0D-7E2F-3A4B-5C6D7E8F9A0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6E5F7A8B-9C0D-7E2F-3A4B-5C6D7E8F9A0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6E5F7A8B-9C0D-7E2F-3A4B-5C6D7E8F9A0B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7F6A8B9C-0D1E-8F3A-4B5C-6D7E8F9A0B1C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7F6A8B9C-0D1E-8F3A-4B5C-6D7E8F9A0B1C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7F6A8B9C-0D1E-8F3A-4B5C-6D7E8F9A0B1C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7F6A8B9C-0D1E-8F3A-4B5C-6D7E8F9A0B1C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8A7B9C0D-1E2F-9A3B-5C6D-7E8F9A0B1C2D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8A7B9C0D-1E2F-9A3B-5C6D-7E8F9A0B1C2D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8A7B9C0D-1E2F-9A3B-5C6D-7E8F9A0B1C2D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8A7B9C0D-1E2F-9A3B-5C6D-7E8F9A0B1C2D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{9B8C0D1E-2F3A-0B4C-6D7E-8F9A0B1C2D3E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{9B8C0D1E-2F3A-0B4C-6D7E-8F9A0B1C2D3E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{9B8C0D1E-2F3A-0B4C-6D7E-8F9A0B1C2D3E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{9B8C0D1E-2F3A-0B4C-6D7E-8F9A0B1C2D3E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C9D1E2F-3A4B-1C5D-7E8F-9A0B1C2D3E4F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C9D1E2F-3A4B-1C5D-7E8F-9A0B1C2D3E4F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C9D1E2F-3A4B-1C5D-7E8F-9A0B1C2D3E4F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C9D1E2F-3A4B-1C5D-7E8F-9A0B1C2D3E4F}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{2A1B3C4D-5E6F-4A8B-9C0D-1E2F3A4B5C6D} = {8A5B7E1A-4D2F-4B8C-9E1F-7A2B3C4D5E6F}
+		{3B2C4D5E-6F7A-4B9C-0D1E-2F3A4B5C6D7E} = {8A5B7E1A-4D2F-4B8C-9E1F-7A2B3C4D5E6F}
+		{4C3D5E6F-7A8B-5C0D-1E2F-3A4B5C6D7E8F} = {8A5B7E1A-4D2F-4B8C-9E1F-7A2B3C4D5E6F}
+		{5D4E6F7A-8B9C-6D1E-2F3A-4B5C6D7E8F9A} = {8A5B7E1A-4D2F-4B8C-9E1F-7A2B3C4D5E6F}
+		{6E5F7A8B-9C0D-7E2F-3A4B-5C6D7E8F9A0B} = {1F2E3D4C-5B6A-4D8C-9A0B-1E2D3C4D5E6F}
+		{7F6A8B9C-0D1E-8F3A-4B5C-6D7E8F9A0B1C} = {1F2E3D4C-5B6A-4D8C-9A0B-1E2D3C4D5E6F}
+		{8A7B9C0D-1E2F-9A3B-5C6D-7E8F9A0B1C2D} = {1F2E3D4C-5B6A-4D8C-9A0B-1E2D3C4D5E6F}
+		{9B8C0D1E-2F3A-0B4C-6D7E-8F9A0B1C2D3E} = {1F2E3D4C-5B6A-4D8C-9A0B-1E2D3C4D5E6F}
+		{0C9D1E2F-3A4B-1C5D-7E8F-9A0B1C2D3E4F} = {5E4D3C2B-1A0F-4E6D-8B2C-3D4E5F6A7B8C}
+	EndGlobalSection
+EndGlobal

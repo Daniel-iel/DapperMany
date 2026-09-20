@@ -22,6 +22,11 @@ bld/
 [Oo]bj/
 [Ll]og/
 [Ll]ogs/
+ 
+.vs/
+.idea/
+node_modules/
+.next
 
 # .NET Core
 project.lock.json

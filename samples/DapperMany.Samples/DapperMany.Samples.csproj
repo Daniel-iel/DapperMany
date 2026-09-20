@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>DapperMany.Samples</AssemblyName>
+    <RootNamespace>DapperMany.Samples</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/DapperMany/DapperMany.csproj" />
+    <ProjectReference Include="../../src/DapperMany.SqlServer/DapperMany.SqlServer.csproj" />
+    <ProjectReference Include="../../src/DapperMany.Postgres/DapperMany.Postgres.csproj" />
+    <ProjectReference Include="../../src/DapperMany.MySql/DapperMany.MySql.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Configuration" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="7.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Configuration.UserSecrets" Version="7.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="appsettings.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
