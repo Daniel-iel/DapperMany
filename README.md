@@ -7,20 +7,20 @@
 [![Contributors](https://img.shields.io/github/contributors/Daniel-iel/DapperMany)](https://github.com/Daniel-iel/DapperMany/graphs/contributors)
 [![Activity](https://img.shields.io/github/commit-activity/m/Daniel-iel/DapperMany)](https://github.com/Daniel-iel/DapperMany/graphs/commit-activity)
 [![CI](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci.yml/badge.svg)](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci.yml)
-[![Documentation](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-documentation.yml/badge.svg)](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-documentation.yml)
-[![Benchmarks](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-benchmark.yml/badge.svg)](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-benchmark.yml)
+[![Documentation](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-documentation.yml/badge.svg)](https://github.com/Daniel-iel/DapperMany/actions/workflows/doc.yml)
+<!-- [![Benchmarks](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-benchmark.yml/badge.svg)](https://github.com/Daniel-iel/DapperMany/actions/workflows/ci-benchmark.yml) -->
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/11549/badge)](https://www.bestpractices.dev/projects/11549)
 
-[![NuGet](https://img.shields.io/nuget/v/DapperMany)](https://www.nuget.org/packages/DapperMany/)
-[![Downloads](https://img.shields.io/nuget/dt/DapperMany)](https://www.nuget.org/packages/DapperMany/)
+[![NuGet](https://img.shields.io/nuget/v/DMany)](https://www.nuget.org/packages/DMany/)
+[![Downloads](https://img.shields.io/nuget/dt/DMany)](https://www.nuget.org/packages/DMany/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE.md)
-[![Code Factor](https://www.codefactor.io/repository/github/Daniel-iel/DapperMany/badge)](https://www.codefactor.io/repository/github/Daniel-iel/DapperMany)
+[![CodeFactor](https://www.codefactor.io/repository/github/daniel-iel/dappermany/badge)](https://www.codefactor.io/repository/github/daniel-iel/dappermany)
 [![DeepSource](https://app.deepsource.com/gh/daniel-iel/DapperMany.svg/?label=active+issues&show_trend=true)](https://app.deepsource.com/gh/daniel-iel/DapperMany/)
 [![codecov](https://codecov.io/github/Daniel-iel/DapperMany/graph/badge.svg?token=0DO0Z5CA6N)](https://codecov.io/github/Daniel-iel/DapperMany)
 [![Known Vulnerabilities](https://snyk.io/test/github/daniel-iel/DapperMany/badge.svg)](https://snyk.io/test/github/daniel-iel/DapperMany)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-support-yellow?style=flat&logo=buy-me-a-coffee)](https://buymeacoffee.com/danieliel)
 
-[Documentation](https://daniel-iel.github.io/DapperMany/) | [Getting Started](https://daniel-iel.github.io/DapperMany/docs/intro) | [API Reference](http://https://daniel-iel.github.io/DapperMany/docs/advanced-features)
+[Documentation](https://daniel-iel.github.io/DapperMany/) | [Getting Started](https://daniel-iel.github.io/DapperMany/docs/intro) | [API Reference Samples](http://https://daniel-iel.github.io/DapperMany/docs/advanced-features)
 
 </div>
 
