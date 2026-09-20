@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>DapperMany</AssemblyName>
     <RootNamespace>DapperMany</RootNamespace>
-    <PackageId>DapperMany</PackageId>
+    <PackageId>DMany</PackageId>
     <Summary>High-performance bulk operations framework extending Dapper</Summary>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>

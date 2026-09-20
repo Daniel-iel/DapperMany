@@ -192,7 +192,7 @@ Em builds de `Debug`, todas as operações bulk relevantes (`InsertMany`, `Inser
 
 Regras e formato:
 - Mensagens somente em `#if DEBUG` (não devem aparecer em builds Release).
-- Formato padrão: `[DAPPERMANY] <Op> <Entity> (<Provider>): affected=<N>, elapsed=<Tms>ms`
+- **Formato padrão**: `[DAPPERMANY] <Op> <Entity> (<Provider>): affected=<N>, elapsed=<Tms>ms`
     - Exemplo: `[DAPPERMANY] BulkInsert Pedido (SqlServer): affected=10, elapsed=45ms`
 - Adicionar logs nas implementações provider-específicas (`IBulkCopyStrategy`) e no orquestrador de grafos (`GraphInsertOrchestrator`) — não instrumentar nas camadas de extensão pública.
 - Para inserções de grafo, registrar tanto a fase de pais quanto a fase de filhos, e um log agregado total ao final da operação.
@@ -239,7 +239,7 @@ DapperMany.sln
     └── mysql/init/
 ```
 
-Pacotes NuGet publicados de forma independente: `DapperMany`, `DapperMany.SqlServer`, `DapperMany.Postgres`, `DapperMany.MySql`.
+Pacotes NuGet publicados de forma independente: `DMany`, `DMany.SqlServer`, `DMany.Postgres`, `DMany.MySql`. (Nota: Os nomes internos das classes e namespaces continuam DapperMany; apenas os IDs de pacote NuGet foram simplificados.)
 
 ### 5.1 Auto-registro de provider via ModuleInitializer
 
@@ -260,7 +260,7 @@ public static class ProviderRegistry
         if (_modules.TryGetValue(typeName, out var module)) return module;
 
         throw new NotSupportedException(
-            $"Nenhum provider registrado para '{typeName}'. Instale o pacote correspondente, ex: DapperMany.SqlServer.");
+            $"Nenhum provider registrado para '{typeName}'. Instale o pacote correspondente, ex: DMany.SqlServer.");
     }
 }
 
@@ -281,7 +281,7 @@ internal static class SqlServerModuleInitializer
 }
 ```
 
-Consumidor só precisa instalar o pacote do provider desejado — nenhuma configuração manual adicional. Extensível por terceiros (ex: `DapperMany.Sqlite` fora do repositório principal).
+Consumidor só precisa instalar o pacote do provider desejado — nenhuma configuração manual adicional. Extensível por terceiros (ex: `DMany.Sqlite` fora do repositório principal).
 
 ---
 
@@ -372,13 +372,13 @@ Requisitos do projeto Samples:
 
 1. Fundação: `EntityMapper` + `AccessorFactory` + `EntityMetadata`, com testes de concorrência isolados.
 2. Ambiente Docker (seção 8.1): `docker-compose.yml` com os três bancos + scripts de schema inicial.
-3. `DapperMany` (core) + `DapperMany.SqlServer`: `InsertManyAsync` simples, validado com Testcontainers.
+3. `DMany` (core) + `DMany.SqlServer`: `InsertManyAsync` simples, validado com Testcontainers.
 4. Projeto `samples` (seção 8.2): cenário de `InsertMany` rodando contra SQL Server via Docker local, como primeiro smoke test manual.
 5. `InsertManyAsync` no SQL Server — 1 nível de relacionamento primeiro, recursão depois.
 6. `UpdateManyAsync` / `DeleteManyAsync` no SQL Server, com cenários correspondentes adicionados ao `samples`.
 7. Extrair `ISqlDialect` / `IBulkCopyStrategy` / `IIdentityRetrievalStrategy` como interfaces formais (refatorando o que já existir hardcoded).
-8. `DapperMany.Postgres` (reaproveita a maior parte da lógica; troca as 3 estratégias) + cenários no `samples`.
-9. `DapperMany.MySql` (mais custoso: CSV temporário para bulk copy, cálculo de Id sequencial) + cenários no `samples`.
+8. `DMany.Postgres` (reaproveita a maior parte da lógica; troca as 3 estratégias) + cenários no `samples`.
+9. `DMany.MySql` (mais custoso: CSV temporário para bulk copy, cálculo de Id sequencial) + cenários no `samples`.
 10. Benchmarks (`BenchmarkDotNet`) comparando com insert linha a linha, por provider.
 11. Documentação (README com exemplos antes/depois) + publicação dos pacotes no NuGet.
 
@@ -396,4 +396,4 @@ Requisitos do projeto Samples:
 
 ## 11. Nome do projeto
 
-**DapperMany** — reflete diretamente a nomenclatura dos métodos públicos (`InsertMany`, `UpdateMany`, `DeleteMany`) e segue a convenção de nomenclatura já reconhecida na comunidade .NET para extensões do Dapper (ex: `Dapper.Contrib`, `Dapper.SimpleCRUD`).
+**DMany** (PackageId no NuGet) — reflete diretamente a nomenclatura dos métodos públicos (`InsertMany`, `UpdateMany`, `DeleteMany`) e segue a convenção de nomenclatura já reconhecida na comunidade .NET para extensões do Dapper (ex: `Dapper.Contrib`, `Dapper.SimpleCRUD`). Os namespaces e nomes internos continuam como DapperMany.

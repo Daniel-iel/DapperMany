@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>DapperMany.SqlServer</AssemblyName>
     <RootNamespace>DapperMany.SqlServer</RootNamespace>
-    <PackageId>DapperMany.SqlServer</PackageId>
+    <PackageId>DMany.SqlServer</PackageId>
     <Summary>SQL Server provider for DapperMany</Summary>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>

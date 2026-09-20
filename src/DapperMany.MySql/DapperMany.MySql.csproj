@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>DapperMany.MySql</AssemblyName>
     <RootNamespace>DapperMany.MySql</RootNamespace>
-    <PackageId>DapperMany.MySql</PackageId>
+    <PackageId>DMany.MySql</PackageId>
     <Summary>MySQL provider for DapperMany</Summary>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>

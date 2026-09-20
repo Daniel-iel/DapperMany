@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AssemblyName>DapperMany.Postgres</AssemblyName>
     <RootNamespace>DapperMany.Postgres</RootNamespace>
-    <PackageId>DapperMany.Postgres</PackageId>
+    <PackageId>DMany.Postgres</PackageId>
     <Summary>PostgreSQL provider for DapperMany</Summary>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>

@@ -27,7 +27,10 @@ See implementation: [src/DapperMany/DapperManyExtensions.cs](src/DapperMany/Dapp
 Prefer installing the published package when available:
 
 ```bash
-dotnet add package DapperMany
+dotnet add package DMany
+dotnet add package DMany.MySQL
+dotnet add package DMany.Postgres
+dotnet add package DMany.SqlServer
 ```
 
 Or build from source and reference the project directly:
