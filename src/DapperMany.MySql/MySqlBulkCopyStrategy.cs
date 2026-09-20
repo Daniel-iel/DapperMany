@@ -29,7 +29,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
 
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = entityList.GetRange(i, Math.Min(RowsPerBatch, entityList.Count - i));
             var inserted = await InsertBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalInserted += inserted;
         }
@@ -55,7 +55,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
 
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = entityList.GetRange(i, Math.Min(RowsPerBatch, entityList.Count - i));
             var updated = await UpdateBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalUpdated += updated;
         }
@@ -81,7 +81,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
 
         for (int i = 0; i < entityList.Count; i += RowsPerBatch)
         {
-            var batch = entityList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = entityList.GetRange(i, Math.Min(RowsPerBatch, entityList.Count - i));
             var deleted = await DeleteBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
@@ -107,7 +107,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
 
         for (int i = 0; i < keyList.Count; i += RowsPerBatch)
         {
-            var batch = keyList.Skip(i).Take(RowsPerBatch).ToList();
+            var batch = keyList.GetRange(i, Math.Min(RowsPerBatch, keyList.Count - i));
             var deleted = await DeleteKeyBatchAsync(connection, batch, metadata, dialect, transaction, cancellationToken);
             totalDeleted += deleted;
         }
@@ -124,7 +124,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         CancellationToken cancellationToken) where T : class
     {
         var columnNames = metadata.MappedProperties
-            .Where(p => !metadata.IdentityProperties.Contains(p))
+            .Where(p => !metadata.IdentityPropertySet.Contains(p))
             .Select(p => p.Name)
             .ToList();
 
@@ -133,7 +133,7 @@ internal class MySqlBulkCopyStrategy : IBulkCopyStrategy
         var parameters = BuildInsertParameters(batch, metadata, columnNames);
 
         // If identity key, perform insert then retrieve LAST_INSERT_ID() and assign sequential IDs to entities
-        if (metadata.IdentityProperties.Contains(metadata.KeyProperty))
+        if (metadata.HasIdentityKey)
         {
             var affected = await connection.ExecuteAsync(new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
 

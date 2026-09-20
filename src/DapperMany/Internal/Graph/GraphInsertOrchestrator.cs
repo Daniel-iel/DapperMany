@@ -1,8 +1,9 @@
 using DapperMany.Internal.Abstractions;
 using DapperMany.Internal.Mapping;
 using System.Data;
-using System.Reflection;
 using System.Diagnostics;
+using System.Reflection;
+using System.Runtime.CompilerServices;
 
 namespace DapperMany.Internal.Graph;
 
@@ -21,8 +22,10 @@ internal class GraphInsertOrchestrator
     /// <param name="parents">Parent entities with child collections</param>
     /// <param name="parentMetadata">Metadata for parent entity type</param>
     /// <param name="providerName">Database provider name</param>
+    /// <param name="transaction">Database transaction (optional)</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Total number of rows inserted (parents + all children)</returns>
+    /// <returns>Number of parent rows inserted (consistent across all providers: MySQL, PostgreSQL, SQL Server)</returns>
+    [MethodImpl(MethodImplOptions.AggressiveOptimization)]
     public static async Task<int> InsertGraphAsync<TParent>(
         IDbConnection connection,
         IEnumerable<TParent> parents,
@@ -36,7 +39,6 @@ internal class GraphInsertOrchestrator
             return 0;
 
         var bulkCopyStrategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
-        var identityStrategy = ProviderRegistry.Instance.GetIdentityRetrievalStrategy(providerName);
 
         // Overall timer for the graph insert
         var overallSw = Stopwatch.StartNew();
@@ -44,14 +46,18 @@ internal class GraphInsertOrchestrator
         // Step 1: Insert all parent entities
         var swParent = Stopwatch.StartNew();
         var parentsInserted = await bulkCopyStrategy.BulkInsertAsync(
-            connection, parentList, parentMetadata, transaction, cancellationToken);
+            connection,
+            parentList,
+            parentMetadata,
+            transaction,
+            cancellationToken
+        );
         swParent.Stop();
 
         Debug.WriteLine($"[DAPPERMANY] GraphInsert {typeof(TParent).Name} (Parents - {providerName}): affected={parentsInserted}, elapsed={swParent.ElapsedMilliseconds}ms");
 
         // Step 2: Retrieve generated identity values for parents
         var parentKeyGetter = AccessorFactory.CreateGetter(parentMetadata.KeyProperty!);
-        var parentKeySetter = AccessorFactory.CreateSetter(parentMetadata.KeyProperty!);
 
         // If parents have auto-generated IDs, retrieve them from database
         // For now, assume they were set by the bulk insert operation
@@ -79,6 +85,7 @@ internal class GraphInsertOrchestrator
         return parentsInserted;
     }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private static async Task<int> InsertChildrenForRelationship<TParent>(
         IDbConnection connection,
         List<TParent> parents,
@@ -157,7 +164,7 @@ internal class GraphInsertOrchestrator
             .MakeGenericMethod(childEntityType);
 
         // Convert List<object> to a strongly-typed List<childEntityType> at runtime
-        var listType = typeof(System.Collections.Generic.List<>).MakeGenericType(childEntityType);
+        var listType = typeof(List<>).MakeGenericType(childEntityType);
         var typedList = (System.Collections.IList)Activator.CreateInstance(listType)!;
         foreach (var c in allChildren)
         {
