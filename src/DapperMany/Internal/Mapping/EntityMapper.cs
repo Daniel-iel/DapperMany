@@ -51,11 +51,15 @@ public static class EntityMapper
             ?? throw new InvalidOperationException(
                 $"Type '{entityType.FullName}' is missing the [Table] attribute.");
 
-        // Find [Key] property (using standard System.ComponentModel.DataAnnotations)
-        var keyProperty = entityType.GetProperties()
-            .FirstOrDefault(p => p.GetCustomAttribute<System.ComponentModel.DataAnnotations.KeyAttribute>() != null)
-            ?? throw new InvalidOperationException(
-                $"Type '{entityType.FullName}' has no [Key] property.");
+        // Find all [Key] properties (supports both single and composite keys)
+        var keyProperties = entityType.GetProperties()
+            .Where(p => p.GetCustomAttribute<System.ComponentModel.DataAnnotations.KeyAttribute>() != null)
+            .OrderBy(p => p.Name)  // Ensure consistent ordering
+            .ToList();
+
+        if (keyProperties.Count == 0)
+            throw new InvalidOperationException(
+                $"Type '{entityType.FullName}' has no [Key] properties. At least one [Key] attribute is required.");
 
         // Collect all mapped properties (all public scalar properties excluding [NotMapped] and navigation properties)
         var mappedProperties = entityType
@@ -66,8 +70,12 @@ public static class EntityMapper
             .Where(p => p.GetCustomAttribute<DapperMany.Attributes.HasManyAttribute>() == null && p.GetCustomAttribute<DapperMany.Attributes.HasOneAttribute>() == null)
             .ToList();
 
-        if (!mappedProperties.Contains(keyProperty))
-            mappedProperties.Insert(0, keyProperty);
+        // Ensure all key properties are in mapped properties
+        foreach (var keyProp in keyProperties)
+        {
+            if (!mappedProperties.Contains(keyProp))
+                mappedProperties.Insert(0, keyProp);
+        }
 
         // Identify identity properties (using standard System.ComponentModel.DataAnnotations.Schema)
         var identityProperties = mappedProperties
@@ -118,7 +126,7 @@ public static class EntityMapper
         {
             EntityType = entityType,
             TableName = tableAttr.Name,
-            KeyProperty = keyProperty,
+            KeyProperties = keyProperties.AsReadOnly(),
             MappedProperties = mappedProperties.AsReadOnly(),
             IdentityProperties = identityProperties.AsReadOnly(),
             IdentityPropertySet = new HashSet<PropertyInfo>(identityProperties),

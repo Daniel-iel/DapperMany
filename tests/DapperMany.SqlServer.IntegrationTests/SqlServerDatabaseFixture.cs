@@ -177,4 +177,34 @@ public class SqlServerDatabaseFixture : IAsyncLifetime
         ";
         await alterModified.ExecuteNonQueryAsync();
     }
+
+    /// <summary>
+    /// Creates composite key test table (TenantPedidos) for multi-tenant scenarios.
+    /// Called by composite key test classes.
+    /// Idempotent - safe to call multiple times.
+    /// </summary>
+    public async Task InitializeCompositeKeySchema()
+    {
+        using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                IF OBJECT_ID('dbo.TenantPedidos', 'U') IS NOT NULL
+                    DROP TABLE dbo.TenantPedidos;
+                
+                CREATE TABLE dbo.TenantPedidos (
+                    TenantId NVARCHAR(50) NOT NULL,
+                    DocumentNumber NVARCHAR(50) NOT NULL,
+                    OrderDate DATETIME2 NOT NULL,
+                    TotalAmount DECIMAL(18, 2) NOT NULL,
+                    Status NVARCHAR(50) NOT NULL,
+                    CreatedAt DATETIME2 NOT NULL,
+                    ModifiedAt DATETIME2 NOT NULL,
+                    PRIMARY KEY (TenantId, DocumentNumber)
+                )";
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
 }

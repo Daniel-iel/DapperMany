@@ -163,4 +163,32 @@ public class MySqlDatabaseFixture : IAsyncLifetime
             // Ignore if MySQL version doesn't support ADD COLUMN IF NOT EXISTS
         }
     }
+
+    /// <summary>
+    /// Creates composite key test table (TenantPedidos) for multi-tenant scenarios.
+    /// Called by composite key test classes.
+    /// Idempotent - safe to call multiple times.
+    /// </summary>
+    public async Task InitializeCompositeKeySchema()
+    {
+        using var connection = new MySqlConnection(_connectionString);
+        await connection.OpenAsync();
+
+        using (var cmd = connection.CreateCommand())
+        {
+            cmd.CommandText = @"
+                DROP TABLE IF EXISTS TenantPedidos;
+                CREATE TABLE TenantPedidos (
+                    TenantId VARCHAR(50) NOT NULL,
+                    DocumentNumber VARCHAR(50) NOT NULL,
+                    OrderDate DATETIME NOT NULL,
+                    TotalAmount DECIMAL(18, 2) NOT NULL,
+                    Status VARCHAR(50) NOT NULL,
+                    CreatedAt DATETIME NOT NULL,
+                    ModifiedAt DATETIME NOT NULL,
+                    PRIMARY KEY (TenantId, DocumentNumber)
+                )";
+            await cmd.ExecuteNonQueryAsync();
+        }
+    }
 }

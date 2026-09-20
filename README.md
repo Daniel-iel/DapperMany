@@ -122,6 +122,62 @@ Console.WriteLine($"Deleted {deleteCount} orders");
 
 Snippet source: [samples/DapperMany.Samples/Program.cs](samples/DapperMany.Samples/Program.cs#L361-L374)
 
+## Composite Key Support
+DapperMany supports multi-column primary keys, enabling use cases like multi-tenancy where entities are uniquely identified by multiple columns.
+
+### Model with Composite Key
+```csharp
+[Table("TenantPedidos")]
+public class TenantPedido
+{
+    // First key: Tenant identifier
+    [Key]
+    public required string TenantId { get; set; }
+
+    // Second key: Document number (unique per tenant)
+    [Key]
+    public required string DocumentNumber { get; set; }
+
+    public DateTime OrderDate { get; set; } = DateTime.UtcNow;
+    public decimal TotalAmount { get; set; }
+    public string Status { get; set; } = "Pendente";
+}
+```
+
+### Using Composite Keys
+All bulk operations work seamlessly with composite keys. UpdateMany and DeleteMany use all key columns in the WHERE clause:
+
+```csharp
+// Insert multiple tenant orders
+var orders = new List<TenantPedido>
+{
+    new TenantPedido { TenantId = "TENANT_A", DocumentNumber = "DOC001", TotalAmount = 1000m },
+    new TenantPedido { TenantId = "TENANT_A", DocumentNumber = "DOC002", TotalAmount = 2000m },
+    new TenantPedido { TenantId = "TENANT_B", DocumentNumber = "DOC001", TotalAmount = 1500m }
+};
+
+var inserted = await connection.InsertManyAsync(orders);
+
+// Update orders
+orders[0].Status = "Processado";
+var updated = await connection.UpdateManyAsync(new[] { orders[0] });
+// Generated WHERE: TenantId = @key0 AND DocumentNumber = @key1
+
+// Delete orders by passing entity objects
+var deleted = await connection.DeleteManyAsync(new[] { orders[0], orders[2] });
+// Generated WHERE: (TenantId = @k0_0 AND DocumentNumber = @k0_1) 
+//               OR (TenantId = @k1_0 AND DocumentNumber = @k1_1)
+```
+
+### Composite Key Constraints
+- At least one `[Key]` attribute is required.
+- Composite keys cannot use `[DatabaseGenerated(Identity)]` (auto-increment only works with single keys).
+- Key properties are ordered alphabetically for deterministic SQL generation.
+
+All database providers (SQL Server, PostgreSQL, MySQL) generate correct SQL syntax automatically.
+
+See implementation: [tests/DapperMany.SqlServer.IntegrationTests/CompositeKeyIntegrationTests.cs](tests/DapperMany.SqlServer.IntegrationTests/CompositeKeyIntegrationTests.cs)
+
 ## Mapping Attributes
 - `[Table("Name")]` — maps a CLR class to a DB table.
 - `[Key]` — marks the primary key property.

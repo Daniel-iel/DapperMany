@@ -278,12 +278,18 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
             if (columnNames.Count == 0)
                 continue; // Nothing to update if only Key is present
 
-            // Build WHERE clause for this entity's key
-            var keyProperty = metadata.KeyProperty;
-            var keyGetter = AccessorFactory.CreateGetter(keyProperty);
-            var keyValue = keyGetter(entity);
+            // Build WHERE clause for entity's key(s) (single or composite)
+            var whereConditionParts = new List<string>();
+            var keyIndex = 0;
+            foreach (var keyProperty in metadata.KeyProperties)
+            {
+                var keyGetter = AccessorFactory.CreateGetter(keyProperty);
+                var keyValue = keyGetter(entity);
+                whereConditionParts.Add($"{dialect.QuoteIdentifier(keyProperty.Name)} = {dialect.GetParameterPlaceholder(columnNames.Count + keyIndex)}");
+                keyIndex++;
+            }
 
-            var whereClause = $"WHERE {dialect.QuoteIdentifier(keyProperty.Name)} = @key";
+            var whereClause = "WHERE " + string.Join(" AND ", whereConditionParts);
             var sql = dialect.GetUpdateSql(metadata.TableName, columnNames, whereClause);
 
             var parameters = new DynamicParameters();
@@ -297,8 +303,16 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
                 parameters.Add($"@param{paramIndex++}", value ?? DBNull.Value);
             }
 
-            // Add WHERE clause parameter
-            parameters.Add("@key", keyValue);
+            // Add WHERE clause parameters (for single or composite keys)
+            var keyParamIndex = 0;
+            foreach (var keyProperty in metadata.KeyProperties)
+            {
+                var keyGetter = AccessorFactory.CreateGetter(keyProperty);
+                var keyValue = keyGetter(entity);
+                var paramName = dialect.GetParameterPlaceholder(columnNames.Count + keyParamIndex);
+                parameters.Add(paramName.TrimStart('@'), keyValue ?? DBNull.Value);
+                keyParamIndex++;
+            }
 
             var updated = await connection.ExecuteAsync(
                 new CommandDefinition(sql, parameters, transaction: transaction, cancellationToken: cancellationToken));
@@ -319,20 +333,52 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         IDbTransaction? transaction,
         CancellationToken cancellationToken) where T : class
     {
-        var keyValues = batch
-            .Select(e => AccessorFactory.CreateGetter(metadata.KeyProperty)(e))
-            .ToList();
-
-        // Use IN clause for batch deletion
-        var inClause = string.Join(", ", Enumerable.Range(0, keyValues.Count).Select(i => $"@key{i}"));
-        var whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} IN ({inClause})";
-        var sql = dialect.GetDeleteSql(metadata.TableName, whereClause);
-
+        string whereClause;
         var parameters = new DynamicParameters();
-        for (int i = 0; i < keyValues.Count; i++)
+
+        if (!metadata.IsCompositeKey)
         {
-            parameters.Add($"@key{i}", keyValues[i]);
+            // Single key: use IN clause
+            var keyValues = batch
+                .Select(e => AccessorFactory.CreateGetter(metadata.KeyProperty)(e))
+                .ToList();
+
+            var inClause = string.Join(", ", Enumerable.Range(0, keyValues.Count).Select(i => $"@key{i}"));
+            whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} IN ({inClause})";
+
+            for (int i = 0; i < keyValues.Count; i++)
+            {
+                parameters.Add($"@key{i}", keyValues[i]);
+            }
         }
+        else
+        {
+            // Composite key: use OR clause with multiple conditions per row
+            var orConditions = new List<string>();
+
+            for (int rowIndex = 0; rowIndex < batch.Count; rowIndex++)
+            {
+                var entity = batch[rowIndex];
+                var andConditions = new List<string>();
+
+                for (int keyIndex = 0; keyIndex < metadata.KeyProperties.Count; keyIndex++)
+                {
+                    var keyProperty = metadata.KeyProperties[keyIndex];
+                    var keyGetter = AccessorFactory.CreateGetter(keyProperty);
+                    var keyValue = keyGetter(entity);
+                    
+                    var paramName = $"@k{rowIndex}_{keyIndex}";
+                    andConditions.Add($"{dialect.QuoteIdentifier(keyProperty.Name)} = {paramName}");
+                    parameters.Add(paramName.TrimStart('@'), keyValue ?? DBNull.Value);
+                }
+
+                orConditions.Add($"({string.Join(" AND ", andConditions)})");
+            }
+
+            whereClause = "WHERE " + string.Join(" OR ", orConditions);
+        }
+
+        var sql = dialect.GetDeleteSql(metadata.TableName, whereClause);
 
         var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
@@ -351,16 +397,54 @@ internal class SqlServerBulkCopyStrategy : IBulkCopyStrategy
         IDbTransaction? transaction,
         CancellationToken cancellationToken)
     {
-        // Use IN clause for batch deletion
-        var inClause = string.Join(", ", Enumerable.Range(0, keys.Count).Select(i => $"@key{i}"));
-        var whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} IN ({inClause})";
-        var sql = dialect.GetDeleteSql(metadata.TableName, whereClause);
-
+        string whereClause;
         var parameters = new DynamicParameters();
-        for (int i = 0; i < keys.Count; i++)
+
+        if (!metadata.IsCompositeKey)
         {
-            parameters.Add($"@key{i}", keys[i]);
+            // Single key: use IN clause
+            var inClause = string.Join(", ", Enumerable.Range(0, keys.Count).Select(i => $"@key{i}"));
+            whereClause = $"WHERE {dialect.QuoteIdentifier(metadata.KeyProperty.Name)} IN ({inClause})";
+
+            for (int i = 0; i < keys.Count; i++)
+            {
+                parameters.Add($"@key{i}", keys[i]);
+            }
         }
+        else
+        {
+            // Composite key: each key should be an object[] with values for each key property
+            var orConditions = new List<string>();
+
+            for (int rowIndex = 0; rowIndex < keys.Count; rowIndex++)
+            {
+                var keyArray = keys[rowIndex] as object[]
+                    ?? throw new InvalidOperationException(
+                        $"For composite keys, each key must be an object[] with {metadata.KeyProperties.Count} elements, " +
+                        $"but got {keys[rowIndex]?.GetType().Name ?? "null"} at index {rowIndex}.");
+
+                if (keyArray.Length != metadata.KeyProperties.Count)
+                    throw new InvalidOperationException(
+                        $"Key at index {rowIndex} has {keyArray.Length} elements, " +
+                        $"but expected {metadata.KeyProperties.Count} for composite key.");
+
+                var andConditions = new List<string>();
+
+                for (int keyIndex = 0; keyIndex < metadata.KeyProperties.Count; keyIndex++)
+                {
+                    var keyProperty = metadata.KeyProperties[keyIndex];
+                    var paramName = $"@k{rowIndex}_{keyIndex}";
+                    andConditions.Add($"{dialect.QuoteIdentifier(keyProperty.Name)} = {paramName}");
+                    parameters.Add(paramName.TrimStart('@'), keyArray[keyIndex] ?? DBNull.Value);
+                }
+
+                orConditions.Add($"({string.Join(" AND ", andConditions)})");
+            }
+
+            whereClause = "WHERE " + string.Join(" OR ", orConditions);
+        }
+
+        var sql = dialect.GetDeleteSql(metadata.TableName, whereClause);
 
         var sw = Stopwatch.StartNew();
         var result = await connection.ExecuteAsync(
