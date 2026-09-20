@@ -1,114 +1,22 @@
-using System.Diagnostics;
 using Dapper;
 using DapperMany.Samples.Models;
 using MySqlConnector;
-using Testcontainers.MySql;
 
 namespace DapperMany.MySql.IntegrationTests;
 
-public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
+public class UpdateManyAndDeleteManyIntegrationTests : IClassFixture<MySqlDatabaseFixture>
 {
-    private MySqlContainer? _container;
-    private string? _connectionString;
+    private readonly MySqlDatabaseFixture _fixture;
 
-    public async Task InitializeAsync()
+    public UpdateManyAndDeleteManyIntegrationTests(MySqlDatabaseFixture fixture)
     {
-        var provided = Environment.GetEnvironmentVariable("TEST_MYSQL_CONNECTIONSTRING");
-        if (!string.IsNullOrWhiteSpace(provided))
-        {
-            _connectionString = provided;
-        }
-        else
-        {
-            var rootPwd = Environment.GetEnvironmentVariable("TEST_MYSQL_ROOT_PASSWORD") ?? "MySql123!";
-            _container = new MySqlBuilder()
-                .WithDatabase("dappermany")
-                .WithUsername("root")
-                .WithPassword(rootPwd)
-                .Build();
-
-            await _container.StartAsync();
-            _connectionString = _container.GetConnectionString();
-        }
-
-        DapperMany.MySql.MySqlProvider.Register();
-
-        var ready = false;
-        var sw = Stopwatch.StartNew();
-        var timeout = TimeSpan.FromMinutes(5);
-        while (sw.Elapsed < timeout)
-        {
-            try
-            {
-                using var testConn = new MySqlConnection(_connectionString);
-                await testConn.OpenAsync();
-                await testConn.CloseAsync();
-                ready = true;
-                break;
-            }
-            catch
-            {
-                await Task.Delay(2000);
-            }
-        }
-
-        if (!ready)
-            throw new InvalidOperationException($"MySQL did not become ready within {timeout.TotalMinutes} minutes.");
-
-        await InitializeSchema();
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_container != null)
-            await _container.StopAsync();
-    }
-
-    private async Task InitializeSchema()
-    {
-        using var connection = new MySqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var cmd = connection.CreateCommand();
-        cmd.CommandText = @"
-            CREATE TABLE IF NOT EXISTS Pedidos (
-                Id INT AUTO_INCREMENT PRIMARY KEY,
-                NumeroDocumento VARCHAR(50) NOT NULL UNIQUE,
-                DataPedido DATETIME NOT NULL,
-                ValorTotal DECIMAL(18,2) NOT NULL,
-                Status VARCHAR(50) NOT NULL,
-                Created DATETIME NOT NULL,
-                Modified DATETIME NOT NULL
-            );
-
-            CREATE TABLE IF NOT EXISTS ItensPedido (
-                Id INT AUTO_INCREMENT PRIMARY KEY,
-                PedidoId INT NOT NULL,
-                Descricao VARCHAR(255) NOT NULL,
-                Quantidade INT NOT NULL,
-                ValorUnitario DECIMAL(18,2) NOT NULL,
-                ValorTotal DECIMAL(18,2) NOT NULL DEFAULT 0,
-                Created DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                Modified DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                CONSTRAINT FK_ItensPedido_Pedidos FOREIGN KEY (PedidoId) REFERENCES Pedidos(Id)
-            );
-        ";
-        await cmd.ExecuteNonQueryAsync();
-
-        using var cleanup = connection.CreateCommand();
-        cleanup.CommandText = @"
-            SET FOREIGN_KEY_CHECKS=0;
-            TRUNCATE TABLE ItensPedido;
-            TRUNCATE TABLE Pedidos;
-            SET FOREIGN_KEY_CHECKS=1;
-        ";
-        await cleanup.ExecuteNonQueryAsync();
+        _fixture = fixture;
     }
 
     [Fact]
     public async Task UpdateMany_UpdatesMultipleEntities()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new List<Pedido>
@@ -137,7 +45,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UpdateMany_PartialUpdate_OnlyModifiesSpecifiedColumns()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido { NumeroDocumento = "PARTIAL-UPDATE", ValorTotal = 500m, Status = "Pendente" };
@@ -158,7 +66,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteMany_DeletesMultipleEntities()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new List<Pedido>
@@ -183,7 +91,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteManyByKeys_DeletesEntitiesByKeyValuesOnly()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new List<Pedido>
@@ -209,11 +117,11 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UpdateMany_WithChildEntities_DoesNotAffectChildren()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido { NumeroDocumento = "CHILD-TEST", ValorTotal = 1000m, Status = "Pendente", Itens = new() { new ItemPedido { Descricao = "Item 1", Quantidade = 2, ValorUnitario = 500m } } };
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         var inserted = (await connection.QueryAsync<Pedido>("SELECT * FROM Pedidos WHERE NumeroDocumento = 'CHILD-TEST' ")).First();
 
@@ -231,11 +139,11 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteMany_CascadeToChildren_MustBeExplicitForV1()
     {
-        using var connection = new MySqlConnection(_connectionString);
+        using var connection = new MySqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido { NumeroDocumento = "CASCADE-TEST", ValorTotal = 500m, Itens = new() { new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 500m } } };
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         var insertedOrder = (await connection.QueryAsync<Pedido>("SELECT * FROM Pedidos WHERE NumeroDocumento = 'CASCADE-TEST' ")).First();
         var orderId = insertedOrder.Id;
@@ -252,3 +160,4 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         Assert.Empty(remainingParent);
     }
 }
+

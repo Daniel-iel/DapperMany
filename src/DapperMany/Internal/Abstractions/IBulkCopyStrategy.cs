@@ -19,6 +19,7 @@ public interface IBulkCopyStrategy
     /// <param name="connection">Active database connection</param>
     /// <param name="entities">Entities to insert</param>
     /// <param name="metadata">Entity metadata containing table and column mappings</param>
+    /// <param name="transaction">Optional database transaction. If provided, the operation will be part of this transaction</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows inserted</returns>
     Task<int> BulkInsertAsync<T>(
@@ -35,6 +36,7 @@ public interface IBulkCopyStrategy
     /// <param name="connection">Active database connection</param>
     /// <param name="entities">Entities to update</param>
     /// <param name="metadata">Entity metadata containing table and column mappings</param>
+    /// <param name="transaction">Optional database transaction. If provided, the operation will be part of this transaction</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows updated</returns>
     Task<int> BulkUpdateAsync<T>(
@@ -51,6 +53,7 @@ public interface IBulkCopyStrategy
     /// <param name="connection">Active database connection</param>
     /// <param name="entities">Entities to delete (only key properties used)</param>
     /// <param name="metadata">Entity metadata containing table and key mappings</param>
+    /// <param name="transaction">Optional database transaction. If provided, the operation will be part of this transaction</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows deleted</returns>
     Task<int> BulkDeleteAsync<T>(
@@ -67,6 +70,7 @@ public interface IBulkCopyStrategy
     /// <param name="connection">Active database connection</param>
     /// <param name="keys">Key values to delete</param>
     /// <param name="metadata">Entity metadata containing table and key mappings</param>
+    /// <param name="transaction">Optional database transaction. If provided, the operation will be part of this transaction</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows deleted</returns>
     Task<int> BulkDeleteByKeysAsync<T>(

@@ -24,7 +24,7 @@ bld/
 [Ll]ogs/
  
 .vs/
-
+.idea/
 node_modules/
 .next
 

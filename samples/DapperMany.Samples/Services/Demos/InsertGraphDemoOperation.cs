@@ -1,25 +1,41 @@
-using System;
-using System.Diagnostics;
-using System.Linq;
-using System.Collections.Generic;
 using DapperMany.Samples.Data;
 using DapperMany.Samples.Infrastructure.Error;
 using DapperMany.Samples.Infrastructure.Output;
 using DapperMany.Samples.Models;
+using System.Diagnostics;
 
 namespace DapperMany.Samples.Services.Demos
 {
+    /// <summary>
+    /// Demonstrates the DapperMany InsertManyGraph bulk insert with object graph functionality.
+    /// </summary>
     public class InsertGraphDemoOperation : IDemoOperation
     {
+        /// <summary>
+        /// Gets the name of this demo operation.
+        /// </summary>
         public string Name => "InsertManyGraph";
 
         private readonly int _count;
 
+        /// <summary>
+        /// Initializes a new instance of the <see cref="InsertGraphDemoOperation"/> class.
+        /// </summary>
+        /// <param name="count">The number of orders with items to insert. Defaults to 3. Minimum value is 1.</param>
         public InsertGraphDemoOperation(int count = 3)
         {
             _count = Math.Max(1, count);
         }
 
+        /// <summary>
+        /// Executes the bulk insert graph demo operation asynchronously.
+        /// Demonstrates inserting orders along with their related items in a single operation.
+        /// </summary>
+        /// <param name="connection">The database connection to use.</param>
+        /// <param name="output">The output formatter for displaying progress and results.</param>
+        /// <param name="errorHandler">The error handler for managing exceptions.</param>
+        /// <param name="generator">The data generator for creating sample orders.</param>
+        /// <returns>A task representing the asynchronous insert graph operation.</returns>
         public async Task ExecuteAsync(System.Data.IDbConnection connection, IOutputFormatter output, IErrorHandler errorHandler, IPedidoGenerator generator)
         {
             output.WriteInfo($"Inserting {_count} orders WITH items (graph insert)...");
@@ -53,7 +69,7 @@ namespace DapperMany.Samples.Services.Demos
                 }
 
                 var sw = Stopwatch.StartNew();
-                int insertedCount = await connection.InsertManyGraphAsync(orders);
+                int insertedCount = await connection.InsertManyAsync(orders);
                 sw.Stop();
 
                 output.WriteSuccess($"Successfully inserted {insertedCount} order(s) with items in {sw.Elapsed.TotalMilliseconds:N0} ms");

@@ -1,128 +1,25 @@
-using System.Diagnostics;
 using DapperMany.Samples.Models;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace DapperMany.Postgres.IntegrationTests;
 
 /// <summary>
-/// Integration tests for InsertManyGraph using PostgreSQL via Testcontainers or external connection.
+/// Integration tests for InsertManyGraph using PostgreSQL.
+/// Uses IClassFixture&lt;PostgreSqlDatabaseFixture&gt; to share database configuration across test methods.
 /// </summary>
-public class InsertManyGraphIntegrationTests : IAsyncLifetime
+public class InsertManyGraphIntegrationTests : IClassFixture<PostgreSqlDatabaseFixture>
 {
-    private PostgreSqlContainer? _container;
-    private string? _connectionString;
+    private readonly PostgreSqlDatabaseFixture _fixture;
 
-    public async Task InitializeAsync()
+    public InsertManyGraphIntegrationTests(PostgreSqlDatabaseFixture fixture)
     {
-        var provided = Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTIONSTRING");
-        if (!string.IsNullOrWhiteSpace(provided))
-        {
-            _connectionString = provided;
-        }
-        else
-        {
-            var pgPassword = Environment.GetEnvironmentVariable("TEST_POSTGRES_PASSWORD") ?? "Postgres123!";
-            _container = new PostgreSqlBuilder()
-                .WithDatabase("dappermany")
-                .WithUsername("postgres")
-                .WithPassword(pgPassword)
-                .Build();
-
-            await _container.StartAsync();
-            _connectionString = _container.GetConnectionString();
-        }
-
-        // Ensure provider registered
-        DapperMany.Postgres.PostgreSqlProvider.Register();
-
-        // Wait for readiness
-        var ready = false;
-        var sw = Stopwatch.StartNew();
-        var timeout = TimeSpan.FromMinutes(5);
-        while (sw.Elapsed < timeout)
-        {
-            try
-            {
-                using var testConn = new NpgsqlConnection(_connectionString);
-                await testConn.OpenAsync();
-                await testConn.CloseAsync();
-                ready = true;
-                break;
-            }
-            catch
-            {
-                await Task.Delay(2000);
-            }
-        }
-
-        if (!ready)
-            throw new InvalidOperationException($"Postgres did not become ready within {timeout.TotalMinutes} minutes.");
-
-        await InitializeSchema();
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_container != null)
-            await _container.StopAsync();
-    }
-
-    private async Task InitializeSchema()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var cmd1 = connection.CreateCommand();
-        cmd1.CommandText = @"
-            CREATE TABLE IF NOT EXISTS ""Pedidos"" (
-                ""Id"" SERIAL PRIMARY KEY,
-                ""NumeroDocumento"" VARCHAR(50) NOT NULL UNIQUE,
-                ""DataPedido"" TIMESTAMP NOT NULL,
-                ""ValorTotal"" NUMERIC(18,2) NOT NULL,
-                ""Status"" VARCHAR(50) NOT NULL,
-                ""Created"" TIMESTAMP NOT NULL,
-                ""Modified"" TIMESTAMP NOT NULL
-            );
-        ";
-        await cmd1.ExecuteNonQueryAsync();
-
-        using var cmd2 = connection.CreateCommand();
-        cmd2.CommandText = @"
-            CREATE TABLE IF NOT EXISTS ""ItensPedido"" (
-                ""Id"" SERIAL PRIMARY KEY,
-                ""PedidoId"" INTEGER NOT NULL,
-                ""Descricao"" VARCHAR(255) NOT NULL,
-                ""Quantidade"" INTEGER NOT NULL,
-                ""ValorUnitario"" NUMERIC(18,2) NOT NULL,
-                ""ValorTotal"" NUMERIC(18,2) NOT NULL,
-                ""Created"" TIMESTAMP NOT NULL,
-                ""Modified"" TIMESTAMP NOT NULL,
-                FOREIGN KEY (""PedidoId"") REFERENCES ""Pedidos""(""Id"") ON DELETE CASCADE
-            );
-        ";
-        await cmd2.ExecuteNonQueryAsync();
-
-        using var cleanup = connection.CreateCommand();
-        cleanup.CommandText = @"TRUNCATE TABLE ""ItensPedido"", ""Pedidos"" RESTART IDENTITY CASCADE;";
-        await cleanup.ExecuteNonQueryAsync();
-
-        // Ensure ValorTotal column exists on ItensPedido (for running docker-compose DBs that may be outdated)
-        using var alter = connection.CreateCommand();
-        alter.CommandText = @"ALTER TABLE ""ItensPedido"" ADD COLUMN IF NOT EXISTS ""ValorTotal"" NUMERIC(18,2) NOT NULL DEFAULT 0;";
-        await alter.ExecuteNonQueryAsync();
-        using var alterCreated = connection.CreateCommand();
-        alterCreated.CommandText = @"ALTER TABLE ""ItensPedido"" ADD COLUMN IF NOT EXISTS ""Created"" TIMESTAMP NOT NULL DEFAULT now();";
-        await alterCreated.ExecuteNonQueryAsync();
-        using var alterModified = connection.CreateCommand();
-        alterModified.CommandText = @"ALTER TABLE ""ItensPedido"" ADD COLUMN IF NOT EXISTS ""Modified"" TIMESTAMP NOT NULL DEFAULT now();";
-        await alterModified.ExecuteNonQueryAsync();
+        _fixture = fixture;
     }
 
     [Fact]
     public async Task InsertManyGraph_SingleParentWithChildren_PopulatesForeignKeys()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido
@@ -138,7 +35,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             }
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
 
         Assert.Equal(1, insertedCount);
 
@@ -156,7 +53,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task InsertManyGraph_MultipleParentsWithVaryingChildCounts_AllInsertsSucceed()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new[]
@@ -195,7 +92,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             }
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(pedidos);
+        var insertedCount = await connection.InsertManyAsync(pedidos);
 
         Assert.Equal(3, insertedCount);
 
@@ -223,7 +120,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task InsertManyGraph_NullChildren_InsertsParentOnly()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido
@@ -235,7 +132,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             Itens = null
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
         Assert.Equal(1, insertedCount);
 
         using var selectParent = connection.CreateCommand();
@@ -252,7 +149,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task InsertManyGraph_ChildForeignKeyAutoPopulated_MatchesParentId()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido
@@ -267,7 +164,7 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
             }
         };
 
-        var insertedCount = await connection.InsertManyGraphAsync(new[] { pedido });
+        var insertedCount = await connection.InsertManyAsync(new[] { pedido });
         Assert.Equal(1, insertedCount);
 
         using var selectFK = connection.CreateCommand();
@@ -285,3 +182,4 @@ public class InsertManyGraphIntegrationTests : IAsyncLifetime
         Assert.Equal(parentId, insertedFK);
     }
 }
+

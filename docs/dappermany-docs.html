@@ -620,7 +620,7 @@ public class Order
 
     <section id="insert-many" class="doc-section">
       <h2>InsertMany / InsertManyGraph</h2>
-      <p data-i18n="insert.p1"><code>InsertManyAsync</code> inserts a flat collection. <code>InsertManyGraphAsync</code> inserts the parent, populates the generated Id back into each entity, and propagates the FK to children declared with <code>[HasMany]</code> or <code>[HasOne]</code>, recursively for grandchildren.</p>
+      <p data-i18n="insert.p1"><code>InsertManyAsync</code> performs bulk inserts for flat collections or entity graphs with automatic relationship detection. When relationships are detected, parent IDs are populated back into each entity and FK values are propagated to children.</p>
 
       <ol class="flow-list">
         <li data-i18n="insert.step1">Inserts the parent records — the strategy depends on the provider (see <a href="#providers">Providers</a>).</li>
@@ -750,7 +750,7 @@ tx.Commit();</pre>
         <li data-i18n="roadmap.i2">Docker environment with the three databases and initial schema.</li>
         <li data-i18n="roadmap.i3"><code>DapperMany</code> (core) + <code>DapperMany.SqlServer</code>: a simple <code>InsertManyAsync</code>, validated with Testcontainers.</li>
         <li data-i18n="roadmap.i4">Samples project: an <code>InsertMany</code> scenario against SQL Server via local Docker.</li>
-        <li data-i18n="roadmap.i5"><code>InsertManyGraphAsync</code> on SQL Server — one relationship level first, recursion after.</li>
+        <li data-i18n="roadmap.i5"><code>InsertManyAsync</code> on SQL Server — one relationship level first, recursion after.</li>
         <li data-i18n="roadmap.i6"><code>UpdateManyAsync</code> / <code>DeleteManyAsync</code> on SQL Server, with matching scenarios in samples.</li>
         <li data-i18n="roadmap.i7">Extract <code>ISqlDialect</code> / <code>IBulkCopyStrategy</code> / <code>IIdentityRetrievalStrategy</code> as formal interfaces.</li>
         <li data-i18n="roadmap.i8"><code>DapperMany.Postgres</code> + scenarios in samples.</li>
@@ -843,7 +843,7 @@ tx.Commit();</pre>
       "mapping.row5": "Relação 1:1 — a FK é propagada do pai para a referência única do filho.",
       "api.h2": "API pública",
       "api.p1": "Cinco métodos de extensão sobre <code>IDbConnection</code> — nada além disso é exposto ao consumidor.",
-      "insert.p1": "<code>InsertManyAsync</code> insere uma coleção plana. <code>InsertManyGraphAsync</code> insere o pai, popula o Id gerado de volta em cada entidade e propaga a FK para os filhos declarados com <code>[HasMany]</code> ou <code>[HasOne]</code>, recursivamente para netos.",
+      "insert.p1": "<code>InsertManyAsync</code> realiza inserções em lote para coleções planas ou gráficos de entidades com detecção automática de relacionamentos. Quando relacionamentos são detectados, os IDs pais são preenchidos de volta em cada entidade e os valores de FK são propagados para os filhos.",
       "insert.step1": "Insere os registros pai — estratégia depende do provider (ver <a href=\"#providers\">Providers</a>).",
       "insert.step2": "Popula o <code>Id</code> gerado de volta em cada entidade pai via setter compilado.",
       "insert.step3": "Para cada relação marcada, verifica se há dados: coleção não nula e não vazia (<code>[HasMany]</code>) ou referência não nula (<code>[HasOne]</code>) — do contrário, pula sem montar batch.",
@@ -901,7 +901,7 @@ tx.Commit();</pre>
       "roadmap.i2": "Ambiente Docker com os três bancos e schema inicial.",
       "roadmap.i3": "<code>DapperMany</code> (core) + <code>DapperMany.SqlServer</code>: <code>InsertManyAsync</code> simples, validado com Testcontainers.",
       "roadmap.i4": "Projeto samples: cenário de <code>InsertMany</code> contra SQL Server via Docker local.",
-      "roadmap.i5": "<code>InsertManyGraphAsync</code> no SQL Server — 1 nível de relacionamento primeiro, recursão depois.",
+      "roadmap.i5": "<code>InsertManyAsync</code> no SQL Server — 1 nível de relacionamento primeiro, recursão depois.",
       "roadmap.i6": "<code>UpdateManyAsync</code> / <code>DeleteManyAsync</code> no SQL Server, com cenários no samples.",
       "roadmap.i7": "Extrair <code>ISqlDialect</code> / <code>IBulkCopyStrategy</code> / <code>IIdentityRetrievalStrategy</code> como interfaces formais.",
       "roadmap.i8": "<code>DapperMany.Postgres</code> + cenários no samples.",
@@ -975,7 +975,7 @@ tx.Commit();</pre>
       "mapping.row5": "Relación 1:1 — la FK se propaga del padre a la referencia única del hijo.",
       "api.h2": "API pública",
       "api.p1": "Cinco métodos de extensión sobre <code>IDbConnection</code> — nada más se expone al consumidor.",
-      "insert.p1": "<code>InsertManyAsync</code> inserta una colección plana. <code>InsertManyGraphAsync</code> inserta el padre, rellena el Id generado de vuelta en cada entidad y propaga la FK a los hijos declarados con <code>[HasMany]</code> o <code>[HasOne]</code>, recursivamente para nietos.",
+      "insert.p1": "<code>InsertManyAsync</code> realiza inserciones en lote para colecciones planas o gráficos de entidades con detección automática de relaciones. Cuando se detectan relaciones, los IDs primarios se rellenan de nuevo en cada entidad y los valores de clave externa se propagan a los hijos.",
       "insert.step1": "Inserta los registros padre — la estrategia depende del provider (ver <a href=\"#providers\">Providers</a>).",
       "insert.step2": "Rellena el <code>Id</code> generado de vuelta en cada entidad padre mediante un setter compilado.",
       "insert.step3": "Para cada relación marcada, verifica si hay datos: colección no nula y no vacía (<code>[HasMany]</code>) o referencia no nula (<code>[HasOne]</code>) — de lo contrario, la omite sin construir el batch.",
@@ -1033,7 +1033,7 @@ tx.Commit();</pre>
       "roadmap.i2": "Entorno Docker con las tres bases de datos y esquema inicial.",
       "roadmap.i3": "<code>DapperMany</code> (core) + <code>DapperMany.SqlServer</code>: <code>InsertManyAsync</code> simple, validado con Testcontainers.",
       "roadmap.i4": "Proyecto samples: escenario de <code>InsertMany</code> contra SQL Server vía Docker local.",
-      "roadmap.i5": "<code>InsertManyGraphAsync</code> en SQL Server — primero 1 nivel de relación, luego recursión.",
+      "roadmap.i5": "<code>InsertManyAsync</code> en SQL Server — primero 1 nivel de relación, luego recursión.",
       "roadmap.i6": "<code>UpdateManyAsync</code> / <code>DeleteManyAsync</code> en SQL Server, con escenarios en samples.",
       "roadmap.i7": "Extraer <code>ISqlDialect</code> / <code>IBulkCopyStrategy</code> / <code>IIdentityRetrievalStrategy</code> como interfaces formales.",
       "roadmap.i8": "<code>DapperMany.Postgres</code> + escenarios en samples.",

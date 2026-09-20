@@ -176,7 +176,7 @@ const es: LocaleContent = {
       blocks: [
         {
           type: "p",
-          html: "<code>InsertManyAsync</code> inserta una colección plana. <code>InsertManyGraphAsync</code> inserta el padre, rellena el Id generado de vuelta en cada entidad y propaga la FK a los hijos declarados con <code>[HasMany]</code> o <code>[HasOne]</code>, recursivamente para nietos.",
+          html: "<code>InsertManyAsync</code> realiza inserciones en lote para colecciones planas o gráficos de entidades con detección automática de relaciones. Cuando se detectan relaciones, los IDs primarios se rellenan de nuevo en cada entidad y los valores de clave externa se propagan a los hijos.",
         },
         {
           type: "ol",
@@ -394,7 +394,7 @@ const es: LocaleContent = {
             "Entorno Docker con las tres bases de datos y esquema inicial.",
             "<code>DapperMany</code> (core) + <code>DapperMany.SqlServer</code>: <code>InsertManyAsync</code> simple, validado con Testcontainers.",
             "Proyecto samples: escenario de <code>InsertMany</code> contra SQL Server vía Docker local.",
-            "<code>InsertManyGraphAsync</code> en SQL Server — primero 1 nivel de relación, luego recursión.",
+            "<code>InsertManyAsync</code> en SQL Server — primero 1 nivel de relación, luego recursión.",
             "<code>UpdateManyAsync</code> / <code>DeleteManyAsync</code> en SQL Server, con escenarios en samples.",
             "Extraer <code>ISqlDialect</code> / <code>IBulkCopyStrategy</code> / <code>IIdentityRetrievalStrategy</code> como interfaces formales.",
             "<code>DapperMany.Postgres</code> + escenarios en samples.",

@@ -129,6 +129,7 @@ public static class EntityMapper
             KeyProperties = keyProperties.AsReadOnly(),
             MappedProperties = mappedProperties.AsReadOnly(),
             IdentityProperties = identityProperties.AsReadOnly(),
+            IdentityPropertySet = new HashSet<PropertyInfo>(identityProperties),
             Relationships = new System.Collections.ObjectModel.ReadOnlyDictionary<string, RelationshipMetadata>(relationships)
         };
 
