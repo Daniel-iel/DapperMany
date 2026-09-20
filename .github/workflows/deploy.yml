@@ -183,13 +183,13 @@ jobs:
           set -euo pipefail
           
           echo "Publishing: DapperMany"
-          dotnet nuget push ./nupkgs/DapperMany.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+          dotnet nuget push ./nupkgs/DMany.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
                                 
           echo "Publishing: DapperMany.MySql"
-          dotnet nuget push ./nupkgs/DapperMany.MySql.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+          dotnet nuget push ./nupkgs/DMany.MySql.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
                                 
           echo "Publishing: DapperMany.Postgres"
-          dotnet nuget push ./nupkgs/DapperMany.Postgres.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+          dotnet nuget push ./nupkgs/DMany.Postgres.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
                                 
           echo "Publishing: DapperMany.SqlServer"
-          dotnet nuget push ./nupkgs/DapperMany.SqlServer.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+          dotnet nuget push ./nupkgs/DMany.SqlServer.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
