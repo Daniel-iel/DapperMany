@@ -164,13 +164,13 @@ jobs:
       - name: NuGet login (OIDC → temporary API key)
         if: env.already_published != 'true'
         uses: NuGet/login@v1
+        id: nuget-login
         with:
-          user: __OIDC__
-          password: ${{ secrets.NUGET_PUBLISH_GH_TOKEN }}
+          user: ${{ secrets.NUGET_USERNAME }}
 
       - name: Push packages to NuGet
         if: env.already_published != 'true'
-        run: dotnet nuget push "./nupkgs/*.nupkg" --source https://api.nuget.org/v3/index.json
+        run: dotnet nuget push "./nupkgs/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
         shell: bash
 
       - name: Create GitHub Release
