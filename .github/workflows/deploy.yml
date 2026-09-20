@@ -6,6 +6,7 @@ on:
       - 'v*'
 
 permissions:
+  id-token: write
   contents: read
 
 jobs:
@@ -99,11 +100,12 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     needs: [validate, test]
-    permissions:
-      id-token: write
-      contents: read
     env:
+      NUGET_TOKEN_ENDPOINT: https://www.nuget.org/api/v2/token
+      NUGET_SOURCE: https://www.nuget.org/api/v2/package
+      NUGET_USERNAME: ${{ vars.NUGET_USERNAME }}
       PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -162,33 +164,46 @@ jobs:
           path: ./nupkgs/*.nupkg
 
       - name: Exchange OIDC token for NuGet API key
-        if: env.already_published != 'true'
-        id: nuget-api-key
-        env:
-          NUGET_TOKEN_ENDPOINT: https://www.nuget.org/api/v2/token
-          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
+        id: nuget-auth
+        shell: bash
         run: |
-          # Request OIDC token from GitHub
-          OIDC_TOKEN=$(curl -s -X POST "${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}" \
-            -H "Accept: application/json" \
-            -H "Authorization: Bearer ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}" \
-            -d "audience=https://www.nuget.org" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')
-          
-          echo "OIDC_TOKEN=$OIDC_TOKEN"
-          
-          # Exchange OIDC token for NuGet API key
-          API_KEY=$(curl -s -X POST "${{ env.NUGET_TOKEN_ENDPOINT }}" \
+          set -euo pipefail
+
+          OIDC_TOKEN=$(curl -sSf \
+            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://www.nuget.org" \
+            | jq -r '.value')
+
+          RESPONSE=$(curl -sSf -w "\n%{http_code}" \
+            -X POST "$NUGET_TOKEN_ENDPOINT" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $OIDC_TOKEN" \
-            -d "{\"username\": \"${{ env.NUGET_USERNAME }}\", \"tokenType\": \"ApiKey\"}" | sed -n 's/.*"apiKey":"\([^"]*\)".*/\1/p')
+            -d "{\"username\": \"$NUGET_USERNAME\", \"tokenType\": \"ApiKey\"}")
+
+          API_KEY=$(echo "$RESPONSE" | head -n -1 | jq -r '.apiKey')
+
+          if [ -z "$API_KEY" ] || [ "$API_KEY" = "null" ]; then
+            echo "Failed to obtain NuGet API key"
+            exit 1
+          fi
+
+          echo "::add-mask::$API_KEY"
+          echo "api-key=$API_KEY" >> "$GITHUB_OUTPUT"
           
-          echo "API_KEY=$API_KEY"
-          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
-          
-      - name: Push packages to NuGet
+      - name: Push NuGet packages
         if: env.already_published != 'true'
-        run: dotnet nuget push "./nupkgs/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-api-key.outputs.api_key }}
         shell: bash
+        run: |
+          set -euo pipefail
+
+          for package in ./nupkgs/*.nupkg; do
+            echo "Publishing $package"
+
+            dotnet nuget push "$package" \
+              --source "$NUGET_SOURCE" \
+              --api-key "${{ steps.nuget-auth.outputs.api-key }}" \
+              --skip-duplicate
+          done
 
       - name: Create GitHub Release
         if: env.already_published != 'true'
