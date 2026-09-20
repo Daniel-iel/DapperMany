@@ -122,18 +122,36 @@ jobs:
       - name: Check if version already published on NuGet
         run: |
           PACKAGES=("DapperMany" "DapperMany.MySql" "DapperMany.Postgres" "DapperMany.SqlServer")
+          echo "Checking if packages v${{ env.PACKAGE_VERSION }} are already published..."
+          
           for PACKAGE in "${PACKAGES[@]}"; do
-            echo "Checking if $PACKAGE v${{ env.PACKAGE_VERSION }} exists on NuGet..."
-            RESPONSE=$(curl -s -o /dev/null -w "%{http_code}" "https://api.nuget.org/v3-flatcontainer/${PACKAGE,,}/${{ env.PACKAGE_VERSION }}/index.json")
-            if [ "$RESPONSE" = "200" ]; then
-              echo "⚠️  Warning: $PACKAGE v${{ env.PACKAGE_VERSION }} already exists on NuGet. Skipping this version."
-              echo "already_published=true" >> $GITHUB_ENV
+            echo ""
+            echo "Checking $PACKAGE..."
+            
+            # Try v3 flat container API (most reliable)
+            RESPONSE_CODE=$(curl -s -o /tmp/response.json -w "%{http_code}" \
+              "https://api.nuget.org/v3-flatcontainer/${PACKAGE,,}/${{ env.PACKAGE_VERSION }}/index.json")
+            
+            if [ "$RESPONSE_CODE" = "200" ]; then
+              echo "❌ ERROR: $PACKAGE v${{ env.PACKAGE_VERSION }} already exists on NuGet!"
+              echo "This version has already been published. You must increment the version number."
+              echo "Current packages on NuGet:"
+              curl -s "https://api.nuget.org/v3-flatcontainer/${PACKAGE,,}/index.json" | jq '.versions[-5:]' 2>/dev/null || echo "(unable to fetch versions)"
+              echo "abort=true" >> $GITHUB_ENV
+            else
+              echo "✓ $PACKAGE v${{ env.PACKAGE_VERSION }} - not found (ready to publish)"
             fi
           done
+          
+          if [ "${{ env.abort }}" = "true" ]; then
+            echo ""
+            echo "❌ Publishing aborted: One or more packages already exist."
+            echo "To fix: Increment version in Directory.Build.props and create a new tag."
+            exit 1
+          fi
         shell: bash
 
       - name: Pack NuGet packages
-        if: env.already_published != 'true'
         run: |
           dotnet pack src/DapperMany/DapperMany.csproj --no-build --configuration Release /p:PackageVersion=${{ env.PACKAGE_VERSION }} --output ./nupkgs
           dotnet pack src/DapperMany.MySql/DapperMany.MySql.csproj --no-build --configuration Release /p:PackageVersion=${{ env.PACKAGE_VERSION }} --output ./nupkgs
@@ -141,7 +159,6 @@ jobs:
           dotnet pack src/DapperMany.SqlServer/DapperMany.SqlServer.csproj --no-build --configuration Release /p:PackageVersion=${{ env.PACKAGE_VERSION }} --output ./nupkgs
 
       - name: Verify package versions
-        if: env.already_published != 'true'
         run: |
           echo "Verifying all packages have version ${{ env.PACKAGE_VERSION }}..."
           for nupkg in ./nupkgs/*.nupkg; do
@@ -155,44 +172,24 @@ jobs:
           done
 
       - name: Upload packages as artifacts
-        if: env.already_published != 'true'
         uses: actions/upload-artifact@v4
         with:
           name: nuget-packages
           path: ./nupkgs/*.nupkg
           
       - name: Publish NuGet packages
-        if: env.already_published != 'true'
         shell: bash
         run: |
           set -euo pipefail
           
           echo "Publishing: DapperMany"
-          dotnet nuget push ./nupkgs/DapperMany.${{ env.PACKAGE_VERSION }}.nupkg \
-            --source "$NUGET_SOURCE" \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
-            --skip-duplicate
-                    
+          dotnet nuget push ./nupkgs/DapperMany.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+                                
           echo "Publishing: DapperMany.MySql"
-          dotnet nuget push ./nupkgs/DapperMany.MySql.${{ env.PACKAGE_VERSION }}.nupkg \
-            --source "$NUGET_SOURCE" \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
-            --skip-duplicate
-                    
+          dotnet nuget push ./nupkgs/DapperMany.MySql.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+                                
           echo "Publishing: DapperMany.Postgres"
-          dotnet nuget push ./nupkgs/DapperMany.Postgres.${{ env.PACKAGE_VERSION }}.nupkg \
-            --source "$NUGET_SOURCE" \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
-            --skip-duplicate
-                    
+          dotnet nuget push ./nupkgs/DapperMany.Postgres.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
+                                
           echo "Publishing: DapperMany.SqlServer"
-          dotnet nuget push ./nupkgs/DapperMany.SqlServer.${{ env.PACKAGE_VERSION }}.nupkg \
-            --source "$NUGET_SOURCE" \
-            --api-key "${{ secrets.NUGET_API_KEY }}" \
-            --skip-duplicate
-          
-      - name: Log if version already published
-        if: env.already_published == 'true'
-        run: |
-          echo "Version ${{ env.PACKAGE_VERSION }} was already published. Skipping publish step."
-          exit 0
+          dotnet nuget push ./nupkgs/DapperMany.SqlServer.${{ env.PACKAGE_VERSION }}.nupkg --source "$NUGET_SOURCE" --api-key "${{ secrets.NUGET_API_KEY }}"
