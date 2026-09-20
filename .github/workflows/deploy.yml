@@ -172,13 +172,18 @@ jobs:
           OIDC_TOKEN=$(curl -s -X POST "${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}" \
             -H "Accept: application/json" \
             -H "Authorization: Bearer ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}" \
-            -d "audience=https://www.nuget.org" | grep -o '"value":"[^"]*"' | cut -d'"' -f4)
+            -d "audience=https://www.nuget.org" | sed -n 's/.*"value":"\([^"]*\)".*/\1/p')
+          
+          echo "OIDC_TOKEN=$OIDC_TOKEN"
           
           # Exchange OIDC token for NuGet API key
           API_KEY=$(curl -s -X POST "${{ env.NUGET_TOKEN_ENDPOINT }}" \
             -H "Content-Type: application/json" \
             -H "Authorization: Bearer $OIDC_TOKEN" \
-            -d "{\"username\": \"${{ env.NUGET_USERNAME }}\", \"tokenType\": \"ApiKey\"}" | grep -o '"apiKey":"[^"]*"' | cut -d'"' -f4)
+            -d "{\"username\": \"${{ env.NUGET_USERNAME }}\", \"tokenType\": \"ApiKey\"}" | sed -n 's/.*"apiKey":"\([^"]*\)".*/\1/p')
+          
+          echo "API_KEY=$API_KEY"
+          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
           
       - name: Push packages to NuGet
         if: env.already_published != 'true'
