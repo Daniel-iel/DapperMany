@@ -191,25 +191,6 @@ jobs:
             --api-key "${{ secrets.NUGET_API_KEY }}" \
             --skip-duplicate
           
-      - name: Create GitHub Release
-        if: env.already_published != 'true'
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: Release ${{ env.PACKAGE_VERSION }}
-          body: |
-            Published NuGet packages for version ${{ env.PACKAGE_VERSION }}
-
-            Packages:
-            - DapperMany ${{ env.PACKAGE_VERSION }}
-            - DapperMany.MySql ${{ env.PACKAGE_VERSION }}
-            - DapperMany.Postgres ${{ env.PACKAGE_VERSION }}
-            - DapperMany.SqlServer ${{ env.PACKAGE_VERSION }}
-          draft: false
-          prerelease: ${{ contains(env.PACKAGE_VERSION, '-') }}
-
       - name: Log if version already published
         if: env.already_published == 'true'
         run: |
