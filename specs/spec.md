@@ -27,8 +27,7 @@ Permitir que o consumidor declare classes com attributes representando tabelas d
 ```csharp
 public static class DbConnectionExtensions
 {
-    Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task InsertManyGraphAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
+    Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null); // flat or graph with auto-detection
     Task UpdateManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<object> keys, IDbTransaction? tx = null);
@@ -69,7 +68,7 @@ public class ItemPedido
 Uso final:
 
 ```csharp
-await connection.InsertManyGraphAsync(pedidos);    // pai + filhos, FK resolvida automaticamente
+await connection.InsertManyAsync(pedidos);    // pai + filhos, FK resolvida automaticamente
 await connection.UpdateManyAsync(pedidosParciais); // objeto só com [Key] + campos a atualizar
 await connection.DeleteManyAsync(pedidoIds);
 ```
@@ -104,18 +103,18 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
 
 #### 4.1.1 Edge Cases
 
-- **Children `null`**: Se a propriedade de navegação do pai for `null`, `InsertManyGraphAsync` deve inserir apenas o pai e pular os filhos.
+- **Children `null`**: Se a propriedade de navegação do pai for `null`, `InsertManyAsync` deve inserir apenas o pai e pular os filhos.
 
     ```csharp
     var pedido = new Pedido { NumeroDocumento = "PED-NULL", Itens = null };
-    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere apenas o pai
+    await connection.InsertManyAsync(new[] { pedido }); // Insere apenas o pai
     ```
 
 - **Children vazio**: Se a coleção estiver vazia, também insere apenas o pai.
 
     ```csharp
     var pedido = new Pedido { NumeroDocumento = "PED-EMPTY", Itens = new List<ItemPedido>() };
-    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere apenas o pai
+    await connection.InsertManyAsync(new[] { pedido }); // Insere apenas o pai
     ```
 
 - **`[HasOne]` (1:1)**: Propriedades marcadas com `[HasOne]` são tratadas como um único filho. A implementação deve aceitar tanto coleções (`[HasMany]`) quanto referências simples (`[HasOne]`) e propagar a FK do pai para o filho.
@@ -128,10 +127,10 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
     }
 
     var pedido = new Pedido { NumeroDocumento = "PED-DET", Detalhe = new PedidoDetalhe { /* ... */ } };
-    await connection.InsertManyGraphAsync(new[] { pedido }); // Insere pai + detalhe (1:1)
+    await connection.InsertManyAsync(new[] { pedido }); // Insere pai + detalhe (1:1)
     ```
 
-- **Transações (obrigatório para operações em massa)**: Todas as operações em lote (`InsertMany`, `InsertManyGraph`, `UpdateMany`, `DeleteMany`) devem obrigatoriamente ser executadas dentro de uma transação associada ao `IDbConnection` usado pela operação.
+- **Transações (obrigatório para operações em massa)**: Todas as operações em lote (`InsertMany`, `UpdateMany`, `DeleteMany`) devem obrigatoriamente ser executadas dentro de uma transação associada ao `IDbConnection` usado pela operação.
 
     Regras de comportamento:
 
@@ -152,7 +151,7 @@ Se não houver dados, o executor deve pular o processamento/insert dessa relaç�
 
     ```csharp
     using var tx = connection.BeginTransaction();
-    await connection.InsertManyGraphAsync(pedidos, tx);
+    await connection.InsertManyAsync(pedidos, tx);
     tx.Commit();
     ```
 
@@ -375,7 +374,7 @@ Requisitos do projeto Samples:
 2. Ambiente Docker (seção 8.1): `docker-compose.yml` com os três bancos + scripts de schema inicial.
 3. `DapperMany` (core) + `DapperMany.SqlServer`: `InsertManyAsync` simples, validado com Testcontainers.
 4. Projeto `samples` (seção 8.2): cenário de `InsertMany` rodando contra SQL Server via Docker local, como primeiro smoke test manual.
-5. `InsertManyGraphAsync` no SQL Server — 1 nível de relacionamento primeiro, recursão depois.
+5. `InsertManyAsync` no SQL Server — 1 nível de relacionamento primeiro, recursão depois.
 6. `UpdateManyAsync` / `DeleteManyAsync` no SQL Server, com cenários correspondentes adicionados ao `samples`.
 7. Extrair `ISqlDialect` / `IBulkCopyStrategy` / `IIdentityRetrievalStrategy` como interfaces formais (refatorando o que já existir hardcoded).
 8. `DapperMany.Postgres` (reaproveita a maior parte da lógica; troca as 3 estratégias) + cenários no `samples`.

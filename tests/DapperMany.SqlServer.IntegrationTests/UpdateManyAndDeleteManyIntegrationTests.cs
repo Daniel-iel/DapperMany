@@ -1,144 +1,28 @@
-using System.Data;
-using System.Diagnostics;
 using Dapper;
 using DapperMany.Samples.Models;
 using Microsoft.Data.SqlClient;
-using Testcontainers.MsSql;
+using System.Data;
 
 namespace DapperMany.SqlServer.IntegrationTests;
 
 /// <summary>
 /// Integration tests for UpdateMany and DeleteMany operations using SQL Server.
+/// Uses IClassFixture&lt;SqlServerDatabaseFixture&gt; to share database configuration across test methods.
 /// </summary>
-public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
+public class UpdateManyAndDeleteManyIntegrationTests : IClassFixture<SqlServerDatabaseFixture>
 {
-    private MsSqlContainer? _container;
-    private string? _connectionString;
+    private readonly SqlServerDatabaseFixture _fixture;
 
-    public async Task InitializeAsync()
+    public UpdateManyAndDeleteManyIntegrationTests(SqlServerDatabaseFixture fixture)
     {
-        // Allow using an existing SQL Server (e.g. docker-compose) by setting TEST_SQLSERVER_CONNECTIONSTRING.
-        var providedConnection = Environment.GetEnvironmentVariable("TEST_SQLSERVER_CONNECTIONSTRING");
-        if (!string.IsNullOrWhiteSpace(providedConnection))
-        {
-            _connectionString = providedConnection;
-        }
-        else
-        {
-            // Create SQL Server container (password read from env var or fallback to docker-compose value)
-            var saPassword = Environment.GetEnvironmentVariable("TEST_SQLSERVER_SA_PASSWORD") ?? "SqlServer123!";
-            _container = new MsSqlBuilder()
-                .WithImage("mcr.microsoft.com/mssql/server:2019-latest")
-                .WithPassword(saPassword)
-                .Build();
-
-            await _container.StartAsync();
-            _connectionString = _container.GetConnectionString();
-        }
-
-        // Ensure SQL Server provider is registered (module initializer may not run under test host).
-        DapperMany.SqlServer.SqlServerProvider.Register();
-
-        // Wait for SQL Server to accept connections (retry loop). Avoid flaky failures due to slow container startup.
-        var ready = false;
-        var sw = Stopwatch.StartNew();
-        var timeout = TimeSpan.FromMinutes(5);
-        while (sw.Elapsed < timeout)
-        {
-            try
-            {
-                using var testConn = new SqlConnection(_connectionString);
-                await testConn.OpenAsync();
-                await testConn.CloseAsync();
-                ready = true;
-                break;
-            }
-            catch
-            {
-                await Task.Delay(2000);
-            }
-        }
-
-        if (!ready)
-            throw new InvalidOperationException($"SQL Server container did not become ready within {timeout.TotalMinutes} minutes.");
-
-        // Initialize schema
-        await InitializeSchema();
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_container != null)
-            await _container.StopAsync();
-    }
-
-    private async Task InitializeSchema()
-    {
-        using var connection = new SqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        // Ensure database exists and switch to it (idempotent)
-        using var useDb = connection.CreateCommand();
-        useDb.CommandText = @"
-            IF DB_ID('DapperMany') IS NULL
-            BEGIN
-                CREATE DATABASE [DapperMany];
-            END
-            USE [DapperMany];
-        ";
-        await useDb.ExecuteNonQueryAsync();
-
-        // Create Pedidos table if it doesn't exist
-        using var cmd1 = connection.CreateCommand();
-        cmd1.CommandText = @"
-            IF OBJECT_ID('dbo.Pedidos','U') IS NULL
-            BEGIN
-                CREATE TABLE dbo.Pedidos (
-                    Id INT PRIMARY KEY IDENTITY(1,1),
-                    NumeroDocumento NVARCHAR(50) NOT NULL UNIQUE,
-                    DataPedido DATETIME2 NOT NULL,
-                    ValorTotal DECIMAL(12,2) NOT NULL,
-                    Status NVARCHAR(50) NOT NULL,
-                    Created DATETIME2 NOT NULL,
-                    Modified DATETIME2 NOT NULL
-                );
-            END
-        ";
-        await cmd1.ExecuteNonQueryAsync();
-
-        // Create ItensPedido table if it doesn't exist
-        using var cmd2 = connection.CreateCommand();
-        cmd2.CommandText = @"
-            IF OBJECT_ID('dbo.ItensPedido','U') IS NULL
-            BEGIN
-                CREATE TABLE dbo.ItensPedido (
-                    Id INT PRIMARY KEY IDENTITY(1,1),
-                    PedidoId INT NOT NULL,
-                    Descricao NVARCHAR(255) NOT NULL,
-                    Quantidade INT NOT NULL,
-                    ValorUnitario DECIMAL(12,2) NOT NULL,
-                    FOREIGN KEY (PedidoId) REFERENCES dbo.Pedidos(Id)
-                );
-            END
-        ";
-        await cmd2.ExecuteNonQueryAsync();
-
-        // Clean up tables to ensure tests run idempotently (delete existing rows and reseed identities)
-        using var cleanup = connection.CreateCommand();
-        cleanup.CommandText = @"
-            DELETE FROM dbo.ItensPedido;
-            DELETE FROM dbo.Pedidos;
-            DBCC CHECKIDENT('dbo.Pedidos', RESEED, 0);
-            DBCC CHECKIDENT('dbo.ItensPedido', RESEED, 0);
-        ";
-        await cleanup.ExecuteNonQueryAsync();
+        _fixture = fixture;
     }
 
     [Fact]
     public async Task UpdateMany_UpdatesMultipleEntities()
     {
         // Arrange
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // First, insert some orders
@@ -159,11 +43,11 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         Assert.Equal(3, pedidoList.Count);
 
         // Act - Update status to "Processado"
-        var updatedPedidos = pedidoList.Select(p => new Pedido 
-        { 
+        var updatedPedidos = pedidoList.Select(p => new Pedido
+        {
             Id = p.Id,
             NumeroDocumento = p.NumeroDocumento, // Required field
-            Status = "Processado" 
+            Status = "Processado"
         }).ToList();
 
         var updateCount = await connection.UpdateManyAsync(updatedPedidos);
@@ -182,14 +66,14 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     public async Task UpdateMany_PartialUpdate_OnlyModifiesSpecifiedColumns()
     {
         // Arrange
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
-        var pedido = new Pedido 
-        { 
-            NumeroDocumento = "PARTIAL-UPDATE", 
-            ValorTotal = 500m, 
-            Status = "Pendente" 
+        var pedido = new Pedido
+        {
+            NumeroDocumento = "PARTIAL-UPDATE",
+            ValorTotal = 500m,
+            Status = "Pendente"
         };
 
         var insertCount = await connection.InsertManyAsync(new[] { pedido });
@@ -201,11 +85,11 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         var insertedPedido = inserted.First();
 
         // Act - Partial update: only update Status, leave ValorTotal unchanged
-        var partialUpdate = new Pedido 
-        { 
+        var partialUpdate = new Pedido
+        {
             Id = insertedPedido.Id,
             NumeroDocumento = insertedPedido.NumeroDocumento, // Required field
-            Status = "Cancelado" 
+            Status = "Cancelado"
             // Note: ValorTotal not set - should remain 500m
         };
 
@@ -226,7 +110,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     public async Task DeleteMany_DeletesMultipleEntities()
     {
         // Arrange
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Insert test orders
@@ -261,7 +145,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     public async Task DeleteManyByKeys_DeletesEntitiesByKeyValuesOnly()
     {
         // Arrange
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Insert test orders
@@ -296,7 +180,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     public async Task UpdateMany_WithChildEntities_DoesNotAffectChildren()
     {
         // Arrange
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Insert order with items
@@ -311,7 +195,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         // Get inserted order ID
         var inserted = await connection.QueryAsync<Pedido>(
@@ -319,11 +203,11 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         var insertedPedido = inserted.First();
 
         // Act - Update only the parent order status
-        var update = new Pedido 
-        { 
+        var update = new Pedido
+        {
             Id = insertedPedido.Id,
             NumeroDocumento = insertedPedido.NumeroDocumento, // Required field
-            Status = "Processado" 
+            Status = "Processado"
         };
 
         var updateCount = await connection.UpdateManyAsync(new[] { update });
@@ -346,7 +230,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     public async Task DeleteMany_CascadeToChildren_MustBeExplicitForV1()
     {
         // Arrange
-        using var connection = new SqlConnection(_connectionString);
+        using var connection = new SqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         // Insert order with items
@@ -360,7 +244,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         // Get IDs
         var insertedOrder = await connection.QueryAsync<Pedido>(
@@ -386,3 +270,4 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         Assert.Empty(remainingParent);
     }
 }
+

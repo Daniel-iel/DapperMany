@@ -1,113 +1,22 @@
-using System.Diagnostics;
 using Dapper;
 using DapperMany.Samples.Models;
 using Npgsql;
-using Testcontainers.PostgreSql;
 
 namespace DapperMany.Postgres.IntegrationTests;
 
-public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
+public class UpdateManyAndDeleteManyIntegrationTests : IClassFixture<PostgreSqlDatabaseFixture>
 {
-    private PostgreSqlContainer? _container;
-    private string? _connectionString;
+    private readonly PostgreSqlDatabaseFixture _fixture;
 
-    public async Task InitializeAsync()
+    public UpdateManyAndDeleteManyIntegrationTests(PostgreSqlDatabaseFixture fixture)
     {
-        var provided = Environment.GetEnvironmentVariable("TEST_POSTGRES_CONNECTIONSTRING");
-        if (!string.IsNullOrWhiteSpace(provided))
-        {
-            _connectionString = provided;
-        }
-        else
-        {
-            var pgPassword = Environment.GetEnvironmentVariable("TEST_POSTGRES_PASSWORD") ?? "Postgres123!";
-            _container = new PostgreSqlBuilder()
-                .WithDatabase("dappermany")
-                .WithUsername("postgres")
-                .WithPassword(pgPassword)
-                .Build();
-
-            await _container.StartAsync();
-            _connectionString = _container.GetConnectionString();
-        }
-
-        DapperMany.Postgres.PostgreSqlProvider.Register();
-
-        var ready = false;
-        var sw = Stopwatch.StartNew();
-        var timeout = TimeSpan.FromMinutes(5);
-        while (sw.Elapsed < timeout)
-        {
-            try
-            {
-                using var testConn = new NpgsqlConnection(_connectionString);
-                await testConn.OpenAsync();
-                await testConn.CloseAsync();
-                ready = true;
-                break;
-            }
-            catch
-            {
-                await Task.Delay(2000);
-            }
-        }
-
-        if (!ready)
-            throw new InvalidOperationException($"Postgres did not become ready within {timeout.TotalMinutes} minutes.");
-
-        await InitializeSchema();
-    }
-
-    public async Task DisposeAsync()
-    {
-        if (_container != null)
-            await _container.StopAsync();
-    }
-
-    private async Task InitializeSchema()
-    {
-        using var connection = new NpgsqlConnection(_connectionString);
-        await connection.OpenAsync();
-
-        using var cmd1 = connection.CreateCommand();
-        cmd1.CommandText = @"
-            CREATE TABLE IF NOT EXISTS ""Pedidos"" (
-                ""Id"" SERIAL PRIMARY KEY,
-                ""NumeroDocumento"" VARCHAR(50) NOT NULL UNIQUE,
-                ""DataPedido"" TIMESTAMP NOT NULL,
-                ""ValorTotal"" NUMERIC(18,2) NOT NULL,
-                ""Status"" VARCHAR(50) NOT NULL,
-                ""Created"" TIMESTAMP NOT NULL,
-                ""Modified"" TIMESTAMP NOT NULL
-            );
-        ";
-        await cmd1.ExecuteNonQueryAsync();
-
-        using var cmd2 = connection.CreateCommand();
-        cmd2.CommandText = @"
-            CREATE TABLE IF NOT EXISTS ""ItensPedido"" (
-                ""Id"" SERIAL PRIMARY KEY,
-                ""PedidoId"" INTEGER NOT NULL,
-                ""Descricao"" VARCHAR(255) NOT NULL,
-                ""Quantidade"" INTEGER NOT NULL,
-                ""ValorUnitario"" NUMERIC(18,2) NOT NULL,
-                ""ValorTotal"" NUMERIC(18,2) NOT NULL DEFAULT 0,
-                ""Created"" TIMESTAMP NOT NULL DEFAULT now(),
-                ""Modified"" TIMESTAMP NOT NULL DEFAULT now(),
-                FOREIGN KEY (""PedidoId"") REFERENCES ""Pedidos""(""Id"")
-            );
-        ";
-        await cmd2.ExecuteNonQueryAsync();
-
-        using var cleanup = connection.CreateCommand();
-        cleanup.CommandText = @"TRUNCATE TABLE ""ItensPedido"", ""Pedidos"" RESTART IDENTITY CASCADE;";
-        await cleanup.ExecuteNonQueryAsync();
+        _fixture = fixture;
     }
 
     [Fact]
     public async Task UpdateMany_UpdatesMultipleEntities()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new List<Pedido>
@@ -142,7 +51,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UpdateMany_PartialUpdate_OnlyModifiesSpecifiedColumns()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido { NumeroDocumento = "PARTIAL-UPDATE", ValorTotal = 500m, Status = "Pendente" };
@@ -163,7 +72,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteMany_DeletesMultipleEntities()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new List<Pedido>
@@ -188,7 +97,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteManyByKeys_DeletesEntitiesByKeyValuesOnly()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedidos = new List<Pedido>
@@ -214,7 +123,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task UpdateMany_WithChildEntities_DoesNotAffectChildren()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido
@@ -225,7 +134,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             Itens = new() { new ItemPedido { Descricao = "Item 1", Quantidade = 2, ValorUnitario = 500m } }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         var inserted = (await connection.QueryAsync<Pedido>("SELECT * FROM \"Pedidos\" WHERE \"NumeroDocumento\" = 'CHILD-TEST'")).First();
 
@@ -243,7 +152,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DeleteMany_CascadeToChildren_MustBeExplicitForV1()
     {
-        using var connection = new NpgsqlConnection(_connectionString);
+        using var connection = new NpgsqlConnection(_fixture.ConnectionString);
         await connection.OpenAsync();
 
         var pedido = new Pedido
@@ -253,7 +162,7 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
             Itens = new() { new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 500m } }
         };
 
-        await connection.InsertManyGraphAsync(new[] { pedido });
+        await connection.InsertManyAsync(new[] { pedido });
 
         var insertedOrder = (await connection.QueryAsync<Pedido>("SELECT * FROM \"Pedidos\" WHERE \"NumeroDocumento\" = 'CASCADE-TEST'")).First();
         var orderId = insertedOrder.Id;
@@ -270,3 +179,4 @@ public class UpdateManyAndDeleteManyIntegrationTests : IAsyncLifetime
         Assert.Empty(remainingParent);
     }
 }
+

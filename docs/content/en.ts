@@ -176,7 +176,7 @@ const en: LocaleContent = {
       blocks: [
         {
           type: "p",
-          html: "<code>InsertManyAsync</code> inserts a flat collection. <code>InsertManyGraphAsync</code> inserts the parent, populates the generated Id back into each entity, and propagates the FK to children declared with <code>[HasMany]</code> or <code>[HasOne]</code>, recursively for grandchildren.",
+          html: "<code>InsertManyAsync</code> performs bulk inserts for flat collections or entity graphs with automatic relationship detection. When relationships are detected, parent IDs are populated back into each entity and FK values are propagated to children.",
         },
         {
           type: "ol",
@@ -394,7 +394,7 @@ const en: LocaleContent = {
             "Docker environment with the three databases and initial schema.",
             "<code>DapperMany</code> (core) + <code>DapperMany.SqlServer</code>: a simple <code>InsertManyAsync</code>, validated with Testcontainers.",
             "Samples project: an <code>InsertMany</code> scenario against SQL Server via local Docker.",
-            "<code>InsertManyGraphAsync</code> on SQL Server — one relationship level first, recursion after.",
+            "<code>InsertManyAsync</code> on SQL Server — one relationship level first, recursion after.",
             "<code>UpdateManyAsync</code> / <code>DeleteManyAsync</code> on SQL Server, with matching scenarios in samples.",
             "Extract <code>ISqlDialect</code> / <code>IBulkCopyStrategy</code> / <code>IIdentityRetrievalStrategy</code> as formal interfaces.",
             "<code>DapperMany.Postgres</code> + scenarios in samples.",

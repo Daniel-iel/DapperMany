@@ -12,13 +12,35 @@ public static class DapperManyExtensions
 {
     /// <summary>
     /// Inserts multiple entities into the database in a single batch operation.
+    /// Automatically detects relationships ([HasMany], [HasOne]) and populates FK and parent IDs.
     /// </summary>
     /// <typeparam name="T">Entity type to insert</typeparam>
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Entities to insert</param>
+    /// <param name="tx">Database transaction (optional). If null, the library creates one.</param>
     /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Number of rows inserted</returns>
+    /// <returns>Number of parent rows inserted</returns>
     /// <exception cref="InvalidOperationException">If the entity type has no [Table] attribute or provider is not registered</exception>
+    /// <remarks>
+    /// Examples:
+    /// <code>
+    /// // Flat insert:
+    /// var orders = new[] { new Order { /* ... */ } };
+    /// var insertedCount = await connection.InsertManyAsync(orders);
+    ///
+    /// // Graph insert (parent + children):
+    /// var pedidos = new[]
+    /// {
+    ///     new Pedido { NumeroDocumento = "PED-001", Itens = new List&lt;ItemPedido&gt;
+    ///     {
+    ///         new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 100 }
+    ///     }}
+    /// };
+    /// var totalInserted = await connection.InsertManyAsync(orders);
+    /// // Pedido.Id will be populated from database
+    /// // ItemPedido.PedidoId will be auto-populated from Pedido.Id
+    /// </code>
+    /// </remarks>
     public static Task<int> InsertManyAsync<T>(
         this IDbConnection connection,
         IEnumerable<T> entities,
@@ -29,14 +51,26 @@ public static class DapperManyExtensions
             throw new ArgumentNullException(nameof(connection));
         if (entities == null)
             throw new ArgumentNullException(nameof(entities));
+
         var metadata = EntityMapper.GetMetadata<T>();
         var providerName = GetProviderName(connection);
-        var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
 
-        return ExecuteWithTransactionAsync<int>(
-            connection,
-            tx,
-            async (conn, localTx) => await strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken));
+        // Auto-detect relationships and route accordingly
+        if (HasGraphRelationships(metadata))
+        {
+            return ExecuteWithTransactionAsync<int>(
+                connection,
+                tx,
+                (conn, localTx) => Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken));
+        }
+        else
+        {
+            var strategy = ProviderRegistry.Instance.GetBulkCopyStrategy(providerName);
+            return ExecuteWithTransactionAsync<int>(
+                connection,
+                tx,
+                (conn, localTx) => strategy.BulkInsertAsync(conn, entities, metadata, localTx, cancellationToken));
+        }
     }
 
     /// <summary>
@@ -45,6 +79,7 @@ public static class DapperManyExtensions
     /// <typeparam name="T">Entity type to update</typeparam>
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Entities to update</param>
+    /// <param name="tx">Database transaction (optional). If null, the library creates one.</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows updated</returns>
     public static Task<int> UpdateManyAsync<T>(
@@ -75,6 +110,7 @@ public static class DapperManyExtensions
     /// <typeparam name="T">Entity type to delete</typeparam>
     /// <param name="connection">Database connection</param>
     /// <param name="entities">Entities to delete (only key values are used)</param>
+    /// <param name="tx">Database transaction (optional). If null, the library creates one.</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows deleted</returns>
     public static Task<int> DeleteManyAsync<T>(
@@ -105,6 +141,7 @@ public static class DapperManyExtensions
     /// <typeparam name="T">Entity type to delete</typeparam>
     /// <param name="connection">Database connection</param>
     /// <param name="keys">Key values of entities to delete</param>
+    /// <param name="tx">Database transaction (optional). If null, the library creates one.</param>
     /// <param name="cancellationToken">Cancellation token</param>
     /// <returns>Number of rows deleted</returns>
     public static Task<int> DeleteManyAsync<T>(
@@ -127,50 +164,6 @@ public static class DapperManyExtensions
             connection,
             tx,
             (conn, localTx) => strategy.BulkDeleteByKeysAsync<T>(conn, keys, metadata, localTx, cancellationToken));
-    }
-
-    /// <summary>
-    /// Inserts multiple parent entities with their related child entities (graph insert).
-    /// Automatically populates foreign key values in children after parents are inserted.
-    /// Children are identified via [HasMany] attributes on parent entity properties.
-    /// </summary>
-    /// <typeparam name="T">Parent entity type</typeparam>
-    /// <param name="connection">Database connection</param>
-    /// <param name="entities">Parent entities with populated child collections</param>
-    /// <param name="cancellationToken">Cancellation token</param>
-    /// <returns>Total number of rows inserted (parents + all children)</returns>
-    /// <remarks>
-    /// Usage example:
-    /// var orders = new List&lt;Pedido&gt;
-    /// {
-    ///     new Pedido { NumeroDocumento = "PED-001", Itens = new List&lt;ItemPedido&gt;
-    ///     {
-    ///         new ItemPedido { Descricao = "Item 1", Quantidade = 1, ValorUnitario = 100 }
-    ///     }}
-    /// };
-    /// var totalInserted = await connection.InsertManyGraphAsync(orders);
-    /// // Pedido.Id will be populated from database
-    /// // ItemPedido.PedidoId will be auto-populated from Pedido.Id
-    /// </remarks>
-    public static Task<int> InsertManyGraphAsync<T>(
-        this IDbConnection connection,
-        IEnumerable<T> entities,
-        IDbTransaction? tx = null,
-        CancellationToken cancellationToken = default) where T : class
-    {
-        if (connection == null)
-            throw new ArgumentNullException(nameof(connection));
-
-        if (entities == null)
-            throw new ArgumentNullException(nameof(entities));
-
-        var metadata = EntityMapper.GetMetadata<T>();
-        var providerName = GetProviderName(connection);
-
-        return ExecuteWithTransactionAsync<int>(
-            connection,
-            tx,
-            (conn, localTx) => Internal.Graph.GraphInsertOrchestrator.InsertGraphAsync(conn, entities, metadata, providerName, localTx, cancellationToken));
     }
 
     /// <summary>
@@ -237,5 +230,13 @@ public static class DapperManyExtensions
                 $"Supported providers: SQL Server (Microsoft.Data.SqlClient), " +
                 $"PostgreSQL (Npgsql), MySQL (MySqlConnector)")
         };
+    }
+
+    /// <summary>
+    /// Detects if an entity has any relationships ([HasMany] or [HasOne]).
+    /// </summary>
+    private static bool HasGraphRelationships(EntityMetadata metadata)
+    {
+        return metadata.Relationships.Count > 0;
     }
 }

@@ -2,35 +2,36 @@
 -- This script creates tables in the dappermany database
 
 -- Create Pedidos table
-CREATE TABLE IF NOT EXISTS public.pedidos (
-    id SERIAL PRIMARY KEY,
-    numero_documento VARCHAR(50) NOT NULL UNIQUE,
-    data_pedido TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    valor_total NUMERIC(18, 2) NOT NULL DEFAULT 0.00,
-    status VARCHAR(50) NOT NULL DEFAULT 'Pendente',
-    created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+CREATE TABLE IF NOT EXISTS "Pedidos" (
+    "Id" SERIAL PRIMARY KEY,
+    "NumeroDocumento" VARCHAR(50) NOT NULL UNIQUE,
+    "DataPedido" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ValorTotal" NUMERIC(18, 2) NOT NULL DEFAULT 0.00,
+    "Status" VARCHAR(50) NOT NULL DEFAULT 'Pendente',
+    "Created" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "Modified" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Create ItensPedido table
-CREATE TABLE IF NOT EXISTS public.itens_pedido (
-    id SERIAL PRIMARY KEY,
-    pedido_id INTEGER NOT NULL,
-    descricao VARCHAR(255) NOT NULL,
-    quantidade INTEGER NOT NULL DEFAULT 1,
-    valor_unitario NUMERIC(18, 2) NOT NULL,
-    valor_total NUMERIC(18, 2) NOT NULL,
-    created TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    modified TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT fk_itens_pedido_pedidos FOREIGN KEY (pedido_id) REFERENCES public.pedidos(id) ON DELETE CASCADE
+CREATE TABLE IF NOT EXISTS "ItensPedido" (
+    "Id" SERIAL PRIMARY KEY,
+    "PedidoId" INTEGER NOT NULL,
+    "Descricao" VARCHAR(255) NOT NULL,
+    "Quantidade" INTEGER NOT NULL DEFAULT 1,
+    "ValorUnitario" NUMERIC(18, 2) NOT NULL,
+    "ValorTotal" NUMERIC(18, 2) NOT NULL,
+    "Created" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "Modified" TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "FK_ItensPedido_Pedidos" FOREIGN KEY ("PedidoId") REFERENCES "Pedidos"("Id") ON DELETE CASCADE
 );
 
 -- Create indexes for better query performance
-CREATE INDEX IF NOT EXISTS idx_pedidos_numero_documento ON public.pedidos(numero_documento);
-CREATE INDEX IF NOT EXISTS idx_itens_pedido_pedido_id ON public.itens_pedido(pedido_id);
+CREATE INDEX IF NOT EXISTS "IX_Pedidos_NumeroDocumento" ON "Pedidos"("NumeroDocumento");
+CREATE INDEX IF NOT EXISTS "IX_ItensPedido_PedidoId" ON "ItensPedido"("PedidoId");
 
 -- Grant permissions to postgres user
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO postgres;
+GRANT ALL PRIVILEGES ON "Pedidos" TO postgres;
+GRANT ALL PRIVILEGES ON "ItensPedido" TO postgres;
 GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO postgres;
 
 -- Print initialization message

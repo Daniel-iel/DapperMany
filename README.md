@@ -17,8 +17,7 @@ DapperMany provides a small set of extension methods over `IDbConnection` to per
 
 Supported operations (public API):
 
-- `InsertManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
-- `InsertManyGraphAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
+- `InsertManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)` — inserts a flat collection or entity graph with auto-detection
 - `UpdateManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
 - `DeleteManyAsync<T>(this IDbConnection connection, IEnumerable<T> entities, ...)`
 
@@ -92,8 +91,8 @@ var orders = new List<Pedido>
     }
 };
 
-int insertedCount = await connection.InsertManyGraphAsync(orders);
-// Parent IDs and children FK values are populated by the library
+int insertedCount = await connection.InsertManyAsync(orders);
+// Parent IDs and children FK values are populated by the library automatically
 ```
 
 Snippet source: [samples/DapperMany.Samples/Program.cs](samples/DapperMany.Samples/Program.cs#L246-L261)
