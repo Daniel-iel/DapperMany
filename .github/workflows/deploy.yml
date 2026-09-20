@@ -101,9 +101,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [validate, test]
     env:
-      NUGET_TOKEN_ENDPOINT: https://www.nuget.org/api/v2/token
       NUGET_SOURCE: https://www.nuget.org/api/v2/package
-      NUGET_USERNAME: ${{ vars.NUGET_USERNAME }}
       PACKAGE_VERSION: ${{ needs.validate.outputs.version }}
 
     steps:
@@ -162,49 +160,37 @@ jobs:
         with:
           name: nuget-packages
           path: ./nupkgs/*.nupkg
-
-      - name: Exchange OIDC token for NuGet API key
-        id: nuget-auth
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          OIDC_TOKEN=$(curl -sSf \
-            -H "Authorization: Bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://www.nuget.org" \
-            | jq -r '.value')
-
-          RESPONSE=$(curl -sSf -w "\n%{http_code}" \
-            -X POST "$NUGET_TOKEN_ENDPOINT" \
-            -H "Content-Type: application/json" \
-            -H "Authorization: Bearer $OIDC_TOKEN" \
-            -d "{\"username\": \"$NUGET_USERNAME\", \"tokenType\": \"ApiKey\"}")
-
-          API_KEY=$(echo "$RESPONSE" | head -n -1 | jq -r '.apiKey')
-
-          if [ -z "$API_KEY" ] || [ "$API_KEY" = "null" ]; then
-            echo "Failed to obtain NuGet API key"
-            exit 1
-          fi
-
-          echo "::add-mask::$API_KEY"
-          echo "api-key=$API_KEY" >> "$GITHUB_OUTPUT"
           
-      - name: Push NuGet packages
+      - name: Publish NuGet packages
         if: env.already_published != 'true'
         shell: bash
         run: |
           set -euo pipefail
-
-          for package in ./nupkgs/*.nupkg; do
-            echo "Publishing $package"
-
-            dotnet nuget push "$package" \
-              --source "$NUGET_SOURCE" \
-              --api-key "${{ steps.nuget-auth.outputs.api-key }}" \
-              --skip-duplicate
-          done
-
+          
+          echo "Publishing: DapperMany"
+          dotnet nuget push ./nupkgs/DapperMany.${{ env.PACKAGE_VERSION }}.nupkg \
+            --source "$NUGET_SOURCE" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
+                    
+          echo "Publishing: DapperMany.MySql"
+          dotnet nuget push ./nupkgs/DapperMany.MySql.${{ env.PACKAGE_VERSION }}.nupkg \
+            --source "$NUGET_SOURCE" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
+                    
+          echo "Publishing: DapperMany.Postgres"
+          dotnet nuget push ./nupkgs/DapperMany.Postgres.${{ env.PACKAGE_VERSION }}.nupkg \
+            --source "$NUGET_SOURCE" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
+                    
+          echo "Publishing: DapperMany.SqlServer"
+          dotnet nuget push ./nupkgs/DapperMany.SqlServer.${{ env.PACKAGE_VERSION }}.nupkg \
+            --source "$NUGET_SOURCE" \
+            --api-key "${{ secrets.NUGET_API_KEY }}" \
+            --skip-duplicate
+          
       - name: Create GitHub Release
         if: env.already_published != 'true'
         uses: actions/create-release@v1
