@@ -47,13 +47,11 @@ public class Order
     public OrderDetail Detail { get; set; }
 }`,
 
-  publicApi: `public static class DbConnectionExtensions
-{
-    Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
+publicApi: `public static class DbConnectionExtensions
+{    
     Task InsertManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
     Task UpdateManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);
-    Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<object> keys, IDbTransaction? tx = null);
+    Task DeleteManyAsync<T>(this IDbConnection cn, IEnumerable<T> entities, IDbTransaction? tx = null);    
 }`,
 
   edgeNull: `var order = new Order { DocumentNumber = "ORD-NULL", Items = null };
@@ -78,12 +76,12 @@ tx.Commit();`,
 
   loggingExample: `[DAPPERMANY] BulkInsert Order (SqlServer): affected=10, elapsed=45ms`,
 
-  installSqlServer: `dotnet add package DapperMany
-dotnet add package DapperMany.SqlServer`,
+  installSqlServer: `dotnet add package DMany
+dotnet add package DMany.SqlServer`,
 
-  installPostgres: `dotnet add package DapperMany
-dotnet add package DapperMany.Postgres`,
+  installPostgres: `dotnet add package DMany
+dotnet add package DMany.Postgres`,
 
-  installMySql: `dotnet add package DapperMany
-dotnet add package DapperMany.MySql`,
+  installMySql: `dotnet add package DMany
+dotnet add package DMany.MySql`,
 };
