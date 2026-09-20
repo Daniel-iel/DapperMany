@@ -52,6 +52,11 @@ jobs:
         with:
           name: unit-test-results
           path: '**/test-results.trx'
+      
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}     
 
   test-integration:
     runs-on: ubuntu-latest
