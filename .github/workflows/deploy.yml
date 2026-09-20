@@ -161,16 +161,28 @@ jobs:
           name: nuget-packages
           path: ./nupkgs/*.nupkg
 
-      - name: NuGet login (OIDC → temporary API key)
+      - name: Exchange OIDC token for NuGet API key
         if: env.already_published != 'true'
-        uses: NuGet/login@v1
-        id: nuget-login
-        with:
-          user: ${{ secrets.NUGET_USERNAME }}
-
+        id: nuget-api-key
+        env:
+          NUGET_TOKEN_ENDPOINT: https://www.nuget.org/api/v2/token
+          NUGET_USERNAME: ${{ secrets.NUGET_USERNAME }}
+        run: |
+          # Request OIDC token from GitHub
+          OIDC_TOKEN=$(curl -s -X POST "${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}" \
+            -H "Accept: application/json" \
+            -H "Authorization: Bearer ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}" \
+            -d "audience=https://www.nuget.org" | grep -o '"value":"[^"]*"' | cut -d'"' -f4)
+          
+          # Exchange OIDC token for NuGet API key
+          API_KEY=$(curl -s -X POST "${{ env.NUGET_TOKEN_ENDPOINT }}" \
+            -H "Content-Type: application/json" \
+            -H "Authorization: Bearer $OIDC_TOKEN" \
+            -d "{\"username\": \"${{ env.NUGET_USERNAME }}\", \"tokenType\": \"ApiKey\"}" | grep -o '"apiKey":"[^"]*"' | cut -d'"' -f4)
+          
       - name: Push packages to NuGet
         if: env.already_published != 'true'
-        run: dotnet nuget push "./nupkgs/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: dotnet nuget push "./nupkgs/*.nupkg" --source https://api.nuget.org/v3/index.json --api-key ${{ steps.nuget-api-key.outputs.api_key }}
         shell: bash
 
       - name: Create GitHub Release
